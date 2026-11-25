@@ -216,11 +216,11 @@ function setView(view) {
   state.view = view;
   $$(".nav-tab").forEach(button => button.classList.toggle("active", button.dataset.view === view));
   const headings = {
-    overview: ["RETRO REWIND // NETWORK INTELLIGENCE", "The grid, <em>right now.</em>", "Every room. Every racer. Every result RWFC makes available."],
-    rooms: ["LIVE NETWORK // ROOM SCANNER", "Find your <em>next room.</em>", "Live rooms, player VR / BR, room status and current course."],
-    races: ["RESULT DATABASE // RACE LOGS", "Every race, <em>on record.</em>", "Search results by room, player, track, engine class or date."],
-    players: ["PLAYER INDEX // VR RANKINGS", "Know the <em>competition.</em>", "Browse individual VR, recent movement and full player histories."],
-    meta: ["GLOBAL ANALYTICS // COMBO LAB", "Read the <em>meta.</em>", "Character, vehicle, combo, track and win-rate analytics from recorded races."]
+    overview: ["GLOBAL NETWORK // LIVE INTELLIGENCE", "The grid, <em>right now.</em>", "Combined live Mario Kart Wii population, plus deep Retro WFC race and player analytics."],
+    rooms: ["RETRO WFC // ROOM SCANNER", "Find your <em>next room.</em>", "Live Retro WFC rooms, player VR / BR, room status and current course."],
+    races: ["RETRO WFC // RACE LOGS", "Every race, <em>on record.</em>", "Search Retro WFC results by room, player, track, engine class or date."],
+    players: ["RETRO WFC // VR RANKINGS", "Know the <em>competition.</em>", "Browse Retro WFC player VR, recent movement and full player histories."],
+    meta: ["RETRO WFC // COMBO LAB", "Read the <em>meta.</em>", "Retro WFC character, vehicle, combo, track and win-rate analytics from recorded races."]
   };
   const h = headings[view] || headings.overview;
   $("#viewEyebrow").textContent = h[0];
