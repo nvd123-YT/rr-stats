@@ -230,3 +230,10 @@ h1 em{font-style:normal;color:var(--lime)}
 .detail-mode-toggle.enabled{color:var(--lime);border-color:rgba(200,255,77,.45);background:rgba(200,255,77,.08)}
 .detail-mode-toggle:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 @media(max-width:620px){.topbar-right{gap:8px}.detail-mode-toggle{padding:7px 8px;font-size:7px}}
+
+.detail-mode-banner{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 16px;padding:14px 16px;border:1px solid rgba(200,255,77,.28);border-radius:9px;background:linear-gradient(100deg,rgba(200,255,77,.09),rgba(18,27,36,.96))}
+.detail-mode-banner>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.detail-mode-banner strong{font:800 13px var(--display);letter-spacing:1px;color:#eaf3f7}
+.detail-mode-banner small{font:9px var(--mono);letter-spacing:.35px;color:#9aabb7}
+.detail-mode-inline{font-size:10px;padding:10px 14px;min-width:112px;background:rgba(200,255,77,.13);border-color:rgba(200,255,77,.55);color:var(--lime)}
+@media(max-width:620px){.detail-mode-banner{align-items:flex-start;padding:12px;gap:8px}.detail-mode-banner small{font-size:8px}.detail-mode-inline{padding:9px 10px;min-width:96px}}
