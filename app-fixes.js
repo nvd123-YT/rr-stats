@@ -3,12 +3,21 @@
 (() => {
   // Preserve the first-pass app functions before extending them.
   const baseUpdateMetrics = window.updateMetrics;
-  window.updateMetrics = function updateMetricsWithLiveCount() {
+  window.updateMetrics = function updateMetricsWithVerifiedRoomCount() {
     if (typeof baseUpdateMetrics === "function") baseUpdateMetrics();
-    if (state.livePlayerCount != null) {
-      $("#metricPlayers").textContent = fmt(state.livePlayerCount);
-      $("#metricPlayersFoot").textContent = "Direct Retro WFC player-count feed";
-    }
+
+    // Never use /roomstatus/pcount for the live MKWii room total: that upstream
+    // counter is not the same thing as the current room snapshot / peak metric.
+    const snapshotCount = Number.isFinite(Number(state.roomStatus && state.roomStatus.totalPlayers))
+      ? Number(state.roomStatus.totalPlayers)
+      : state.rooms.reduce((sum, room) => sum + roomPlayers(room).length, 0);
+    const peak = state.roomStats && state.roomStats.peakPlayersAllTime;
+    const todayPeak = state.roomStats && state.roomStats.peakPlayersToday;
+
+    $("#metricPlayers").textContent = fmt(snapshotCount);
+    $("#metricPlayersFoot").textContent =
+      "Current room snapshot · all-time peak " + fmt(peak) +
+      (todayPeak == null ? "" : " · today " + fmt(todayPeak));
   };
 
   const baseRenderMeta = window.renderMeta;
@@ -297,18 +306,6 @@
     if (!state.ttLoaded) loadTTData();
   };
 
-  async function refreshDirectPlayerCount() {
-    try {
-      const payload = await api("/roomstatus/pcount");
-      if (payload && Number.isFinite(Number(payload.count))) {
-        state.livePlayerCount = Number(payload.count);
-        window.updateMetrics();
-      }
-    } catch (_) {
-      // A room snapshot remains a useful fallback if the direct counter is unavailable.
-    }
-  }
-
   document.addEventListener("click", event => {
     const tab = event.target.closest(".nav-tab[data-view]");
     if (tab && tab.dataset.view === "players" && state.leaderboard.length <= 10) loadLeaderboard(1);
@@ -379,6 +376,4 @@
     }
   }, true);
 
-  refreshDirectPlayerCount();
-  setInterval(refreshDirectPlayerCount, 60000);
 })();
