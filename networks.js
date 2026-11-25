@@ -568,6 +568,351 @@
     return '<div class="network-live-grid">' + wiimmfiSection + wiilinkSection + '</div>';
   }
 
+  const networkSectionTitles = {
+    rooms: ["ROOM SCANNER", "Browse active rooms and their current player rosters."],
+    players: ["PLAYER DIRECTORY", "Inspect currently visible players and network-specific ratings."],
+    races: ["RACE ACTIVITY", "Live race state and race-history coverage for this network."],
+    meta: ["NETWORK META", "Live population, activity and network-specific performance metrics."],
+    "time-trials": ["TIME TRIALS", "Time-trial and ghost-record coverage for this network."]
+  };
+  let activeSectionPage = null;
+
+  function networkPageShell(section, network, body) {
+    const names = { retro: "RETRO WFC", wiimmfi: "WIIMMFI", wiilink: "WIILINK WFC" };
+    const heading = networkSectionTitles[section] || ["NETWORK DATA", "Live network telemetry."];
+    return '<div class="network-section-heading"><div><div class="network-eyebrow">' +
+      esc(names[network] || network.toUpperCase()) + ' // ' + esc(heading[0]) +
+      '</div><p class="network-detail">' + esc(heading[1]) +
+      '</p></div><span class="network-section-tag">' + esc(names[network] || network.toUpperCase()) + '</span></div>' + body;
+  }
+
+  function networkStat(label, value) {
+    return '<div class="network-section-stat"><b>' + fmt(value) + '</b><span>' + esc(label) + '</span></div>';
+  }
+
+  function networkPanel(title, subtitle, body) {
+    return '<section class="panel network-notes"><div class="panel-head"><div class="panel-title"><strong>' +
+      esc(title) + '</strong><small>' + esc(subtitle) +
+      '</small></div></div><div class="panel-body">' + body + '</div></section>';
+  }
+
+  function networkUnavailable(title, message, diagnostic) {
+    return networkPanel(title, "SOURCE COVERAGE", '<div class="network-unsupported"><strong>' + esc(title) +
+      '</strong><p>' + esc(message) + '</p>' +
+      (diagnostic ? '<p class="network-error" style="margin-top:10px">' + esc(diagnostic) + '</p>' : '') +
+      '</div>');
+  }
+
+  function wiimmfiRoomCount(room) {
+    if (number(room.playerCount) !== null) return Number(room.playerCount);
+    if (Array.isArray(room.roster)) return room.roster.length;
+    return number(room.players) === null ? 0 : Number(room.players);
+  }
+
+  function renderWiimmfiRoomsPage() {
+    const w = networkState.wiimmfi;
+    const rooms = w.roomGroups || [];
+    const b = w.breakdown || {};
+    const rows = rooms.map(room => '<tr><td class="mono">' + esc(room.id || "—") +
+      '</td><td class="mono">' + esc(room.region || "—") +
+      '</td><td>' + esc(room.privateRoom == null ? "—" : room.privateRoom ? "Private" : "Public") +
+      '</td><td>' + esc(room.onlineScope || room.mode || "—") +
+      '</td><td>' + fmt(wiimmfiRoomCount(room)) + '</td></tr>').join("");
+    const body = '<div class="network-section-grid">' +
+      networkStat("ONLINE PLAYER SLOTS", w.onlinePlayers) +
+      networkStat("ACTIVE ROOMS", w.rooms) +
+      networkStat("RACING", b.race) +
+      networkStat("BATTLE", b.battle) +
+      '</div>' +
+      networkPanel("Current Wiimmfi rooms", "Room IDs, region and access details where the feed exposes them",
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM ID</th><th>REGION</th><th>ACCESS</th><th>PLAY MODE</th><th>PLAYER SLOTS</th></tr></thead><tbody>' +
+        (rows || '<tr><td colspan="5">The readable room-count feed does not expose individual room IDs.</td></tr>') +
+        '</tbody></table></div>') +
+      (w.players && w.players.length
+        ? networkPanel("Room rosters", "Player-level status text feed", renderWiimmfiPlayerRows(w.players))
+        : networkPanel("Room roster coverage", "Player-level text status feed",
+          '<p class="network-section-note">Wiimmfi room totals are available, but its player-status text feed did not load. This means room-level player names, exact per-player state and roster details are not currently available from this browser session.</p>' +
+          (w.error ? '<p class="network-error" style="margin-top:10px">' + esc(w.error) + '</p>' : '')));
+    return body;
+  }
+
+  function renderWiimmfiPlayerRows(players) {
+    const rows = (players || []).map(player => '<tr><td><b>' + esc(player.name) + '</b></td><td>' + esc(player.mode || "—") +
+      '</td><td>' + esc(player.role || "—") + '</td><td class="mono">' + esc(player.room || "—") +
+      '</td><td class="mono">' + esc(player.region || "—") + '</td><td>' +
+      esc(player.privateRoom ? "Private" : "Public") + ' · ' + esc(player.onlineScope || "—") + '</td></tr>').join("");
+    return '<div class="table-wrap"><table class="data-table"><thead><tr><th>PLAYER</th><th>STATE</th><th>ROLE</th><th>ROOM</th><th>REGION</th><th>ACCESS / SCOPE</th></tr></thead><tbody>' +
+      (rows || '<tr><td colspan="6">No player records are present in the current feed.</td></tr>') +
+      '</tbody></table></div>';
+  }
+
+  function renderWiimmfiPlayersPage() {
+    const w = networkState.wiimmfi;
+    const b = w.breakdown || {};
+    return '<div class="network-section-grid">' +
+      networkStat("ONLINE SLOTS", w.onlinePlayers) +
+      networkStat("RACING", b.race) +
+      networkStat("BATTLE", b.battle) +
+      networkStat("SEARCHING", b.searching) +
+      '</div>' +
+      networkPanel("Wiimmfi live player list", "Player identity and online state from public status records",
+        w.players && w.players.length
+          ? renderWiimmfiPlayerRows(w.players)
+          : '<p class="network-section-note">The room-count feed can be read, but the separate Wiimmfi player-status text feed failed. Player names, roles and per-player room state will appear here when that feed is accessible.</p>' +
+            (w.error ? '<p class="network-error" style="margin-top:10px">' + esc(w.error) + '</p>' : ''));
+  }
+
+  function renderWiimmfiRacesPage() {
+    const w = networkState.wiimmfi;
+    const b = w.breakdown || {};
+    return '<div class="network-section-grid">' +
+      networkStat("PLAYERS RACING", b.race) +
+      networkStat("PLAYERS IN BATTLES", b.battle) +
+      networkStat("ACTIVE MATCHES", b.active) +
+      networkStat("SEARCHING", b.searching) +
+      '</div>' +
+      networkUnavailable("No public historical race archive",
+        "Wiimmfi’s public HTTP status feed reports whether players are in a race or battle, but it does not publish a persistent finishing-order archive, track history or race-by-race results. The richer wiimmfi=race and wiimmfi=room protocol records are sent to game clients; they are not present in the public room-count JSON feed. This page therefore reports live race state only, without inventing race results.",
+        w.error);
+  }
+
+  function renderWiimmfiMetaPage() {
+    const w = networkState.wiimmfi;
+    const b = w.breakdown || {};
+    const metrics = [
+      ["ONLINE SLOTS", w.onlinePlayers], ["ACTIVE", b.active], ["RACING", b.race],
+      ["BATTLE", b.battle], ["SEARCHING", b.searching], ["CONNECTING", b.connecting],
+      ["PRIVATE-ROOM SLOTS", b.private], ["PUBLIC-ROOM SLOTS", b.public],
+      ["WORLDWIDE", b.worldwide], ["CONTINENTAL", b.continental],
+      ["HOST SLOTS", b.hosts], ["GUEST SLOTS", b.guests], ["VIEWER SLOTS", b.viewers],
+      ["CONSOLES", b.consoles]
+    ];
+    const regions = (w.regions || []).map(r => '<tr><td class="mono">' + esc(r.id) +
+      '</td><td>' + fmt(r.players) + '</td></tr>').join("");
+    return '<div class="network-section-grid">' + metrics.map(item => networkStat(item[0], item[1])).join("") +
+      '</div>' + networkPanel("Wiimmfi regional population", "Current region counts, when published by the feed",
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>REGION</th><th>PLAYER SLOTS</th></tr></thead><tbody>' +
+        (regions || '<tr><td colspan="2">Regional detail is not available in the current readable feed.</td></tr>') +
+        '</tbody></table></div>') +
+      (w.error ? networkPanel("Feed availability", "Current source diagnostics", '<p class="network-error">' + esc(w.error) + '</p>') : '');
+  }
+
+  function allWiiLinkPlayers() {
+    return (networkState.wiilink.roomGroups || []).flatMap(room =>
+      (room.players || []).map(player => Object.assign({ roomId: room.id, roomType: room.type, region: room.region }, player)));
+  }
+
+  function renderWiiLinkRoomsPage() {
+    const w = networkState.wiilink;
+    const rooms = w.roomGroups || [];
+    const rows = rooms.map(room => {
+      const race = room.race || {};
+      const roster = (room.players || []).map(player => '<div class="network-player-line"><b>' + esc(player.name) +
+        '</b><span>' + (player.friendCode ? esc(player.friendCode) + ' · ' : '') +
+        'VS ' + fmt(player.versusElo) + ' / BT ' + fmt(player.battleElo) +
+        (player.consolePlayers > 1 ? ' · ' + player.consolePlayers + 'P' : '') +
+        (player.connectionFailures ? ' · ' + player.connectionFailures + ' failed links' : '') +
+        '</span></div>').join("");
+      return '<tr><td class="mono">' + esc(room.id) + '</td><td>' + esc(room.type) +
+        (room.suspended ? ' · SUSPENDED' : '') + '</td><td>' + esc(room.region || "—") +
+        '</td><td>' + esc(room.created ? localTime(room.created) : "—") +
+        '</td><td>' + (race.num == null ? "—" : 'Race ' + fmt(race.num)) +
+        (race.course == null ? "" : ' · Course ' + fmt(race.course)) +
+        (race.cc == null ? "" : ' · ' + fmt(race.cc) + ' CC') +
+        '</td><td>' + fmt(room.playerSlots) + '<div class="network-room-players">' + roster + '</div></td></tr>';
+    }).join("");
+    return '<div class="network-section-grid">' +
+      networkStat("PLAYERS ONLINE", w.onlinePlayers) +
+      networkStat("ACTIVE PLAYER SLOTS", w.activePlayers) +
+      networkStat("ONLINE CONSOLES", w.onlineSessions) +
+      networkStat("ACTIVE ROOMS", w.rooms) +
+      '</div>' + networkPanel("WiiLink active rooms", "Public and private groups, race metadata and current player rosters",
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>TYPE</th><th>REGION / MATCH</th><th>CREATED</th><th>RACE / COURSE</th><th>PLAYER SLOTS / ROSTER</th></tr></thead><tbody>' +
+        (rows || '<tr><td colspan="6">No active Mario Kart Wii room groups are currently returned.</td></tr>') +
+        '</tbody></table></div>' +
+        (w.error ? '<p class="network-error" style="margin-top:12px">ROOM DETAIL FEED · ' + esc(w.error) + '</p>' : ''));
+  }
+
+  function renderWiiLinkPlayersPage() {
+    const w = networkState.wiilink;
+    const players = allWiiLinkPlayers();
+    const rows = players.map(player => '<tr><td><b>' + esc(player.name) + '</b></td><td class="mono">' +
+      esc(player.pid || "—") + '</td><td class="mono">' + esc(player.friendCode || "—") +
+      '</td><td>' + fmt(player.versusElo) + '</td><td>' + fmt(player.battleElo) +
+      '</td><td>' + fmt(player.consolePlayers) + '</td><td>' +
+      (player.suspended ? "Suspended" : "Normal") + '</td><td class="mono">' +
+      esc(player.roomId) + '</td></tr>').join("");
+    return '<div class="network-section-grid">' +
+      networkStat("VISIBLE CONSOLES", w.onlineSessions) +
+      networkStat("PLAYER SLOTS", w.onlinePlayers) +
+      networkStat("ACTIVE SLOTS", w.activePlayers) +
+      networkStat("ROOM ROSTERS", players.length) +
+      '</div>' + networkPanel("WiiLink live player directory", "Current online group members, friend codes and WiiLink ELO ratings",
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>PLAYER</th><th>PROFILE ID</th><th>FRIEND CODE</th><th>VS ELO</th><th>BATTLE ELO</th><th>LOCAL SLOTS</th><th>STATUS</th><th>ROOM</th></tr></thead><tbody>' +
+        (rows || '<tr><td colspan="8">No player roster returned. If the room endpoint is unavailable, the console/session totals remain separate and player-slot totals are withheld.</td></tr>') +
+        '</tbody></table></div>' +
+        (w.error ? '<p class="network-error" style="margin-top:12px">ROOM DETAIL FEED · ' + esc(w.error) + '</p>' : ''));
+  }
+
+  function renderWiiLinkRacesPage() {
+    const w = networkState.wiilink;
+    const races = (w.roomGroups || []).filter(room => room.race && Number(room.race.num || 0) > 0);
+    const rows = races.map(room => {
+      const race = room.race || {};
+      return '<tr><td class="mono">' + esc(room.id) + '</td><td>' + esc(room.type) +
+        '</td><td>' + fmt(race.num) + '</td><td>' + fmt(race.course) +
+        '</td><td>' + (race.cc == null ? "—" : fmt(race.cc) + " CC") +
+        '</td><td>' + fmt(room.playerSlots) + '</td></tr>';
+    }).join("");
+    return '<div class="network-section-grid">' +
+      networkStat("ACTIVE ROOMS", w.rooms) +
+      networkStat("ROOMS WITH RACE DATA", races.length) +
+      networkStat("ONLINE PLAYER SLOTS", w.onlinePlayers) +
+      networkStat("ACTIVE PLAYER SLOTS", w.activePlayers) +
+      '</div>' + networkPanel("Current WiiLink race metadata", "Live race number, course and engine class from active MKWii groups",
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>TYPE</th><th>RACE #</th><th>COURSE ID</th><th>ENGINE CLASS</th><th>PLAYER SLOTS</th></tr></thead><tbody>' +
+        (rows || '<tr><td colspan="6">No active room currently exposes race metadata. WiiLink does not provide a persistent race-results archive through these public endpoints.</td></tr>') +
+        '</tbody></table></div>');
+  }
+
+  function renderWiiLinkMetaPage() {
+    const w = networkState.wiilink;
+    const players = allWiiLinkPlayers();
+    const byVs = players.filter(p => number(p.versusElo) !== null).slice().sort((a, b) => b.versusElo - a.versusElo).slice(0, 8);
+    const byBattle = players.filter(p => number(p.battleElo) !== null).slice().sort((a, b) => b.battleElo - a.battleElo).slice(0, 8);
+    const failures = players.reduce((sum, p) => sum + (number(p.connectionFailures) || 0), 0);
+    const slots = players.reduce((sum, p) => sum + (number(p.consolePlayers) || 0), 0);
+    const rankRows = items => '<div class="rank-list">' + (items.length ? items.map((p, i) =>
+      '<div class="rank-row"><span class="rank-number">' + String(i + 1).padStart(2, "0") +
+      '</span><span class="rank-name">' + esc(p.name) + '<div class="subnote">' + esc(p.roomId) +
+      '</div></span><span class="rank-value">' + fmt(p.versusElo) + '</span></div>').join("")
+      : '<div class="empty-state">NO LIVE ELO ROWS</div>') + '</div>';
+    const battleRows = items => '<div class="rank-list">' + (items.length ? items.map((p, i) =>
+      '<div class="rank-row"><span class="rank-number">' + String(i + 1).padStart(2, "0") +
+      '</span><span class="rank-name">' + esc(p.name) + '<div class="subnote">' + esc(p.roomId) +
+      '</div></span><span class="rank-value">' + fmt(p.battleElo) + '</span></div>').join("")
+      : '<div class="empty-state">NO LIVE ELO ROWS</div>') + '</div>';
+    return '<div class="network-section-grid">' +
+      networkStat("ONLINE CONSOLES", w.onlineSessions) +
+      networkStat("PLAYER SLOTS", w.onlinePlayers) +
+      networkStat("LOCAL PLAYER SLOTS", slots) +
+      networkStat("CONNECTION FAILURES", failures) +
+      '</div><div class="lower-grid">' +
+      '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Live VS ELO leaders</strong><small>Only currently visible WiiLink players</small></div></div><div class="panel-body">' + rankRows(byVs) + '</div></section>' +
+      '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Live Battle ELO leaders</strong><small>Kept separate from VS ELO</small></div></div><div class="panel-body">' + battleRows(byBattle) + '</div></section></div>';
+  }
+
+  function renderNetworkSection(section, network) {
+    if (network === "retro") {
+      if (section === "time-trials") return networkUnavailable("Retro WFC time trials loading", "The existing Retro WFC time-trial view is opened through its original loader.");
+      const renderers = { rooms: "renderRooms", races: "renderRaces", players: "renderPlayers", meta: "renderMeta" };
+      const fn = renderers[section] && window[renderers[section]];
+      return typeof fn === "function" ? fn() : networkUnavailable("Retro WFC page unavailable", "The original Retro WFC renderer was not found.");
+    }
+    if (network === "wiimmfi") {
+      if (section === "rooms") return renderWiimmfiRoomsPage();
+      if (section === "players") return renderWiimmfiPlayersPage();
+      if (section === "races") return renderWiimmfiRacesPage();
+      if (section === "meta") return renderWiimmfiMetaPage();
+    }
+    if (network === "wiilink") {
+      if (section === "rooms") return renderWiiLinkRoomsPage();
+      if (section === "players") return renderWiiLinkPlayersPage();
+      if (section === "races") return renderWiiLinkRacesPage();
+      if (section === "meta") return renderWiiLinkMetaPage();
+    }
+    return networkUnavailable("No public " + (network === "wiimmfi" ? "Wiimmfi" : "WiiLink") + " time-trial feed",
+      "This network does not publish a public MKWii ghost or time-trial leaderboard through the endpoints currently available to the dashboard. The submenu is retained for consistency, but no results are fabricated.");
+  }
+
+  function updateNetworkNavState() {
+    document.querySelectorAll(".nav-menu").forEach(menu => {
+      const section = menu.dataset.navSection;
+      const selected = !!activeSectionPage && activeSectionPage.section === section;
+      const summary = menu.querySelector("summary");
+      if (summary) summary.classList.toggle("active", selected);
+      menu.querySelectorAll(".nav-subtab").forEach(button => {
+        button.classList.toggle("active", !!activeSectionPage &&
+          button.dataset.page === activeSectionPage.section &&
+          button.dataset.network === activeSectionPage.network);
+      });
+      if (!selected) menu.open = false;
+    });
+    document.querySelectorAll(".nav-tab[data-view]").forEach(button => {
+      button.classList.toggle("active", !activeSectionPage && button.dataset.view === (appState().view === "networks" ? "networks" : "overview"));
+    });
+  }
+
+  function setNetworkSectionPage(section, network) {
+    activeSectionPage = { section, network };
+    updateNetworkNavState();
+    const s = appState();
+    if (s && typeof s === "object") s.view = section;
+    const titles = {
+      rooms: ["MARIO KART WII // " + network.toUpperCase() + " ROOMS", "Find your <em>next room.</em>", "Current " + network.toUpperCase() + " room information and player rosters."],
+      players: ["MARIO KART WII // " + network.toUpperCase() + " PLAYERS", "Who's on the <em>grid?</em>", "Live player records, ratings and connection information published by " + network.toUpperCase() + "."],
+      races: ["MARIO KART WII // " + network.toUpperCase() + " RACES", "Race by <em>race.</em>", "Live race telemetry and historical result coverage for " + network.toUpperCase() + "."],
+      meta: ["MARIO KART WII // " + network.toUpperCase() + " META", "Read the <em>meta.</em>", "Current activity and network-specific performance data for " + network.toUpperCase() + "."],
+      "time-trials": ["MARIO KART WII // " + network.toUpperCase() + " TIME TRIALS", "Chase the <em>record.</em>", "Ghost and time-trial coverage published by " + network.toUpperCase() + "."]
+    };
+    const h = titles[section] || titles.rooms;
+    const eyebrow = document.querySelector("#viewEyebrow");
+    const title = document.querySelector("#viewTitle");
+    const subtitle = document.querySelector("#viewSubtitle");
+    if (eyebrow) eyebrow.textContent = h[0];
+    if (title) title.innerHTML = h[1];
+    if (subtitle) subtitle.textContent = h[2];
+
+    if (section === "time-trials" && network === "retro") {
+      if (typeof originalSetViewForNetwork === "function") originalSetViewForNetwork("time-trials");
+      return;
+    }
+    const root = document.querySelector("#viewContent");
+    if (root) {
+      try { root.innerHTML = renderNetworkSection(section, network); }
+      catch (error) {
+        console.error("Network section render failed:", error);
+        root.innerHTML = '<section class="panel"><div class="panel-body"><div class="empty-state">PAGE RENDER ERROR · ' + esc(error && error.message || error) + '</div></div></section>';
+      }
+    }
+    if (network === "retro" && section === "players" && typeof window.loadLeaderboard === "function" && appState().leaderboard.length <= 10) window.loadLeaderboard(1);
+    if (network === "retro" && section === "races" && typeof window.loadRaces === "function" && appState().races.length <= 12) window.loadRaces(1);
+  }
+
+  const originalRenderViewForNetwork = window.renderView;
+  const originalSetViewForNetwork = window.setView;
+  if (typeof originalRenderViewForNetwork === "function") {
+    window.renderView = function renderNetworkSubpageRouter() {
+      if (activeSectionPage && activeSectionPage.network !== "retro") {
+        const root = document.querySelector("#viewContent");
+        if (root) root.innerHTML = renderNetworkSection(activeSectionPage.section, activeSectionPage.network);
+        return;
+      }
+      if (typeof originalRenderViewForNetwork === "function") originalRenderViewForNetwork();
+    };
+  }
+  if (typeof originalSetViewForNetwork === "function") {
+    window.setView = function setNetworkSubpageDefault(view) {
+      if (["rooms", "races", "players", "meta"].includes(view)) {
+        setNetworkSectionPage(view, "retro");
+        return;
+      }
+      if (view === "time-trials") {
+        setNetworkSectionPage("time-trials", "retro");
+        return;
+      }
+      activeSectionPage = null;
+      updateNetworkNavState();
+      originalSetViewForNetwork(view);
+    };
+  }
+
+  function navigateNetworkSubpage(section, network) {
+    const menu = document.querySelector('.nav-menu[data-nav-section="' + section + '"]');
+    if (menu) menu.open = false;
+    setNetworkSectionPage(section, network);
+  }
+
   function renderNetworks() {
     const list = providers();
     const countable = list.filter(provider => provider.status === "live" && number(provider.onlinePlayers) !== null).length;
@@ -595,10 +940,10 @@
   }
 
   function setNetworkView() {
+    activeSectionPage = null;
     const s = appState();
     if (s && typeof s === "object") s.view = "networks";
-    const tabs = Array.from(document.querySelectorAll(".nav-tab"));
-    tabs.forEach(tab => tab.classList.toggle("active", tab.dataset.view === "networks"));
+    updateNetworkNavState();
     const eyebrow = document.querySelector("#viewEyebrow");
     const title = document.querySelector("#viewTitle");
     const subtitle = document.querySelector("#viewSubtitle");
@@ -643,12 +988,14 @@
     await Promise.allSettled([refreshWiimmfi(), refreshWiiLink()]);
     networkState.busy = false;
     if (typeof window.updateMetrics === "function") window.updateMetrics();
-    if (appState().view === "networks") setNetworkView();
+    if (activeSectionPage && activeSectionPage.network !== "retro") window.renderView();
+    else if (appState().view === "networks") setNetworkView();
   }
 
   window.rrNetworkStats = {
     refresh: refreshNetworks,
     render: renderNetworks,
+    renderSection: renderNetworkSection,
     getSnapshot: () => ({
       combinedPlayers: combined("onlinePlayers"),
       combinedRooms: combined("rooms"),
@@ -662,19 +1009,27 @@
   // the previous view mounted or overwrite this route during the same click.
   document.addEventListener("click", event => {
     const target = event.target;
-    const tab = target && typeof target.closest === "function"
-      ? target.closest('.nav-tab[data-view="networks"]')
-      : null;
-    if (!tab) return;
-    event.preventDefault();
-    event.stopImmediatePropagation();
-    setNetworkView();
+    if (!target || typeof target.closest !== "function") return;
+    const subtab = target.closest(".nav-subtab[data-page][data-network]");
+    if (subtab) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      navigateNetworkSubpage(subtab.dataset.page, subtab.dataset.network);
+      return;
+    }
+    const tab = target.closest('.nav-tab[data-view="networks"]');
+    if (tab) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      setNetworkView();
+    }
   }, true);
 
   refreshNetworks();
   setInterval(refreshNetworks, REFRESH_MS);
   setInterval(() => {
-    if (appState().view === "networks") setNetworkView();
+    if (activeSectionPage && activeSectionPage.network !== "retro") window.renderView();
+    else if (appState().view === "networks") setNetworkView();
     if (typeof window.updateMetrics === "function") window.updateMetrics();
   }, 5000);
 })();
