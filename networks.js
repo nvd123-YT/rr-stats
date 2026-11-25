@@ -4,8 +4,8 @@
   const WIIMMFI_JSON_URL = "https://wiimmfi.de/stats/mkwx?m=json";
   const WIIMMFI_URL = "https://wiimmfi.de/stats/game/mariokartwii/text";
   const WIIMMFI_PAGE = "https://wiimmfi.de/stats/mkw";
-  const WIILINK_URL = "https://wfc.wiilink.ca/online";
-  const WIILINK_API = "https://wfc.wiilink.ca/api";
+  const WIILINK_URL = "https://wfc.wiilink.ca/online/";
+  const WIILINK_API = "https://api.wfc.wiilink24.com/api";
   const REFRESH_MS = 45000;
   const networkState = {
     wiimmfi: { name: "Wiimmfi", onlinePlayers: null, rooms: null, players: [], roomGroups: [], status: "waiting", detail: "Waiting for the public Mario Kart Wii status feed", updatedAt: null },
