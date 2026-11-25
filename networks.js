@@ -201,6 +201,14 @@
     };
   }
 
+  function explainFeedError(error) {
+    const message = String(error && error.message || error || "Unknown fetch error");
+    if (/load failed|failed to fetch|networkerror|fetch failed/i.test(message)) {
+      return "browser request failed (possible CORS, Cloudflare protection or network filtering; the exact cause is not exposed)";
+    }
+    return message;
+  }
+
   async function refreshWiimmfi() {
     const [jsonResult, textResult] = await Promise.allSettled([
       fetchText(WIIMMFI_JSON_URL, 12000),
@@ -209,9 +217,9 @@
     let jsonParsed = null;
     let textParsed = null;
     let jsonError = jsonResult.status === "rejected"
-      ? String(jsonResult.reason && jsonResult.reason.message || jsonResult.reason) : null;
+      ? explainFeedError(jsonResult.reason) : null;
     let textError = textResult.status === "rejected"
-      ? String(textResult.reason && textResult.reason.message || textResult.reason) : null;
+      ? explainFeedError(textResult.reason) : null;
 
     if (jsonResult.status === "fulfilled") {
       try {
@@ -358,9 +366,9 @@
     ]);
 
     if (statsResult.status === "rejected") {
-      const statsError = String(statsResult.reason && statsResult.reason.message || statsResult.reason);
+      const statsError = explainFeedError(statsResult.reason);
       const groupsError = groupsResult.status === "rejected"
-        ? String(groupsResult.reason && groupsResult.reason.message || groupsResult.reason) : null;
+        ? explainFeedError(groupsResult.reason) : null;
       networkState.wiilink = {
         name: "WiiLink WFC", onlinePlayers: null, activePlayers: null,
         onlineSessions: null, activeSessions: null, rooms: null,
@@ -387,7 +395,7 @@
     }
 
     const groupError = groupsResult.status === "rejected"
-      ? String(groupsResult.reason && groupsResult.reason.message || groupsResult.reason) : null;
+      ? explainFeedError(groupsResult.reason) : null;
     networkState.wiilink = Object.assign({
       name: "WiiLink WFC",
       regions: [],
