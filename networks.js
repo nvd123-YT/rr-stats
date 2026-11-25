@@ -5,10 +5,11 @@
   const WIIMMFI_URL = "https://wiimmfi.de/stats/game/mariokartwii/text";
   const WIIMMFI_PAGE = "https://wiimmfi.de/stats/mkw";
   const WIILINK_URL = "https://wfc.wiilink.ca/online";
+  const WIILINK_API = "https://wfc.wiilink.ca/api";
   const REFRESH_MS = 45000;
   const networkState = {
     wiimmfi: { name: "Wiimmfi", onlinePlayers: null, rooms: null, players: [], roomGroups: [], status: "waiting", detail: "Waiting for the public Mario Kart Wii status feed", updatedAt: null },
-    wiilink: { name: "WiiLink WFC", onlinePlayers: null, rooms: null, status: "waiting", detail: "Checking the official online browser", updatedAt: null },
+    wiilink: { name: "WiiLink WFC", onlinePlayers: null, activePlayers: null, rooms: null, roomGroups: [], status: "waiting", detail: "Checking the public Mario Kart Wii API", updatedAt: null },
     lastAttempt: null,
     busy: false
   };
@@ -200,44 +201,83 @@
     }
   }
 
-  function parseWiiLinkMkwiiCount(html) {
-    const text = String(html || "").replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;|&#160;/gi, " ")
-      .replace(/\s+/g, " ");
-    const patterns = [
-      /Mario Kart Wii[^.]{0,100}?(\d+)\s*(?:players?|online)/i,
-      /(\d+)\s*(?:players?|online)[^.]{0,100}?Mario Kart Wii/i
-    ];
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match) return Number(match[1]);
-    }
-    // Do not turn the page's generic "nobody online" placeholder into a verified
-    // Mario Kart Wii zero; the page lists many different games and loads its data client-side.
-    return null;
+  function parseWiiLinkSnapshot(statsPayload, groupPayload) {
+    if (!statsPayload || typeof statsPayload !== "object" || !Array.isArray(groupPayload)) return null;
+
+    const gameStats = statsPayload.mariokartwii || {};
+    const validStats = statsPayload.global && typeof statsPayload.global === "object";
+    if (!validStats) return null;
+
+    const rooms = groupPayload
+      .filter(group => group && (!group.game || String(group.game).toLowerCase() === "mariokartwii"))
+      .map((group, index) => {
+        const playerMap = group.players && typeof group.players === "object" ? group.players : {};
+        const players = Object.values(playerMap).map(player => ({
+          name: player.name || "Unknown player",
+          pid: player.pid || "",
+          friendCode: player.fc || "",
+          versusElo: number(player.ev),
+          battleElo: number(player.eb),
+          consolePlayers: Math.max(1, number(player.count) || 1),
+          suspended: String(player.suspend || "0") !== "0"
+        }));
+        return {
+          id: String(group.id || "Room " + (index + 1)),
+          type: group.type || "unknown",
+          region: group.rk || "",
+          created: group.created || null,
+          suspended: !!group.suspend,
+          race: group.race || null,
+          players,
+          playerSlots: players.reduce((sum, player) => sum + player.consolePlayers, 0)
+        };
+      });
+
+    const roomPlayerSlots = rooms.reduce((sum, room) => sum + room.playerSlots, 0);
+    const onlinePlayers = number(gameStats.online) !== null
+      ? Number(gameStats.online)
+      : roomPlayerSlots;
+    const activePlayers = number(gameStats.active) !== null
+      ? Number(gameStats.active)
+      : roomPlayerSlots;
+    const roomCount = number(gameStats.groups) !== null
+      ? Number(gameStats.groups)
+      : rooms.length;
+
+    return {
+      onlinePlayers,
+      activePlayers,
+      rooms: roomCount,
+      roomGroups: rooms,
+      status: "live",
+      detail: "Live Mario Kart Wii totals and room/player details from WiiLink WFC's public API",
+      updatedAt: new Date().toISOString()
+    };
   }
 
   async function refreshWiiLink() {
     try {
-      const html = await fetchText(WIILINK_URL, 12000);
-      const count = parseWiiLinkMkwiiCount(html);
-      networkState.wiilink = {
+      const [statsText, groupsText] = await Promise.all([
+        fetchText(WIILINK_API + "/stats?game=mariokartwii", 12000),
+        fetchText(WIILINK_API + "/groups?game=mariokartwii", 12000)
+      ]);
+      const parsed = parseWiiLinkSnapshot(JSON.parse(statsText), JSON.parse(groupsText));
+      if (!parsed) throw new Error("WiiLink API returned an unrecognized response");
+      networkState.wiilink = Object.assign({
         name: "WiiLink WFC",
-        onlinePlayers: count,
-        rooms: null,
-        status: count === null ? "linked" : "live",
-        detail: count === null
-          ? "Official online browser is available, but its page does not expose a reliable Mario Kart Wii-only count"
-          : "Mario Kart Wii-specific count parsed from the official online browser",
-        updatedAt: new Date().toISOString()
-      };
+        regions: [],
+        error: null
+      }, parsed);
     } catch (error) {
       networkState.wiilink = {
-        name: "WiiLink WFC", onlinePlayers: null, rooms: null,
-        status: "linked",
-        detail: "Official online browser linked; browser-side count access is blocked or not exposed",
+        name: "WiiLink WFC",
+        onlinePlayers: null,
+        activePlayers: null,
+        rooms: null,
+        roomGroups: [],
+        regions: [],
+        status: "unavailable",
+        detail: "Could not read WiiLink's public Mario Kart Wii stats/groups API",
         updatedAt: new Date().toISOString(),
         error: String(error && error.message || error)
       };
@@ -318,9 +358,11 @@
         capability("Regional counts", Array.isArray(provider.regions) && provider.regions.length ? "yes" : "not exposed", Array.isArray(provider.regions) && provider.regions.length > 0) +
         capability("VR / race archive", "not in public status feed", false);
     } else {
-      features = capability("Official game browser", "yes", true) +
-        capability("MKWii-only count", provider.onlinePlayers === null ? "not exposed" : "yes", provider.onlinePlayers !== null) +
-        capability("VR / race archive", "not exposed here", false);
+      features = capability("Live rooms / players", provider.onlinePlayers === null ? "unavailable" : "yes", provider.onlinePlayers !== null) +
+        capability("Friend codes", "yes", true) +
+        capability("VS / Battle ELO", "yes", true) +
+        capability("Historical race archive", "not exposed", false);
+      substats = '<div class="network-substats"><div><b>' + fmt(provider.activePlayers) + '</b><span>ACTIVE PLAYERS</span></div><div><b>' + fmt(provider.rooms) + '</b><span>LIVE ROOMS</span></div></div>';
     }
     return '<article class="network-card">' +
       '<div class="network-card-head"><div><div class="network-name">' + esc(provider.name) + '</div><div class="network-source">' + esc(provider.key === "retro" ? "RETRO REWIND / RETRO WFC" : provider.key === "wiimmfi" ? "WIIMMFI PROJECT" : "WIILINK TEAM") + '</div></div>' + statusLabel(provider) + '</div>' +
@@ -333,21 +375,48 @@
       '</article>';
   }
 
-  function renderWiimmfiActivity() {
-    const s = networkState.wiimmfi;
-    if ((!s.roomGroups || !s.roomGroups.length) && (!s.regions || !s.regions.length)) {
-      return '<div class="empty-state">NO WIIMMFI ROOM DETAILS AVAILABLE FROM THE CURRENT FEED</div>';
-    }
-    const regions = (s.regions || []).slice(0, 30).map(region =>
+  function renderNetworkActivity() {
+    const wiimmfi = networkState.wiimmfi;
+    const wiilink = networkState.wiilink;
+    const wiimmfiRegions = (wiimmfi.regions || []).slice(0, 30).map(region =>
       '<tr><td class="mono">' + esc(region.id) + '</td><td class="mono lime">' + fmt(region.players) + '</td></tr>'
     ).join("");
-    const rooms = (s.roomGroups || []).slice(0, 60).map(room =>
+    const wiimmfiRooms = (wiimmfi.roomGroups || []).slice(0, 60).map(room =>
       '<tr><td class="mono">' + esc(room.id) + '</td><td class="mono">' + esc(room.region) + '</td><td>' + fmt(room.players) + '</td></tr>'
     ).join("");
-    return '<div class="network-live-grid">' +
-      '<section><div class="panel-title"><strong>Players by region</strong><small>Current room player totals grouped by region ID</small></div><div class="table-wrap"><table class="data-table"><thead><tr><th>REGION ID</th><th>PLAYERS</th></tr></thead><tbody>' + (regions || '<tr><td colspan="2">Regional breakdown not exposed</td></tr>') + '</tbody></table></div></section>' +
-      '<section><div class="panel-title"><strong>Live rooms</strong><small>Room records in the latest status response</small></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>REGION</th><th>PLAYERS</th></tr></thead><tbody>' + (rooms || '<tr><td colspan="3">No room rows</td></tr>') + '</tbody></table></div></section>' +
-      '</div>';
+    const wiilinkRooms = (wiilink.roomGroups || []).slice(0, 60).map(room => {
+      const race = room.race || {};
+      const course = race.course == null ? "—" : "Course " + race.course;
+      const players = room.players.map(player =>
+        '<div class="network-player-line"><b>' + esc(player.name) + '</b><span>' +
+        (player.friendCode ? esc(player.friendCode) + " · " : "") +
+        'VS ' + fmt(player.versusElo) + ' / BT ' + fmt(player.battleElo) +
+        (player.consolePlayers > 1 ? " · " + player.consolePlayers + "P" : "") +
+        '</span></div>'
+      ).join("");
+      return '<tr><td class="mono">' + esc(room.id) + '</td><td>' + esc(room.type) +
+        (room.suspended ? ' · SUSPENDED' : '') + '</td><td>' + esc(course) +
+        (race.cc == null ? "" : " · " + esc(race.cc) + " CC") + '</td><td>' +
+        fmt(room.playerSlots) + '<div class="network-room-players">' + players + '</div></td></tr>';
+    }).join("");
+
+    const wiimmfiSection = (wiimmfi.regions || []).length || (wiimmfi.roomGroups || []).length
+      ? '<section><div class="panel-title"><strong>Wiimmfi</strong><small>Legacy JSON regions and live room records</small></div>' +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>REGION ID</th><th>PLAYERS</th></tr></thead><tbody>' +
+        (wiimmfiRegions || '<tr><td colspan="2">Regional breakdown not exposed</td></tr>') +
+        '</tbody></table></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>REGION</th><th>PLAYERS</th></tr></thead><tbody>' +
+        (wiimmfiRooms || '<tr><td colspan="3">No room rows</td></tr>') +
+        '</tbody></table></div></section>'
+      : '<section><div class="panel-title"><strong>Wiimmfi</strong><small>Live activity detail</small></div><div class="empty-state">Room details unavailable from the current Wiimmfi feed.</div></section>';
+
+    const wiilinkSection = wiilink.status === "live"
+      ? '<section><div class="panel-title"><strong>WiiLink WFC</strong><small>Live rooms, player ELO and current race metadata</small></div>' +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>TYPE</th><th>RACE / COURSE</th><th>PLAYERS · VS / BATTLE ELO</th></tr></thead><tbody>' +
+        (wiilinkRooms || '<tr><td colspan="4">No active room records</td></tr>') +
+        '</tbody></table></div></section>'
+      : '<section><div class="panel-title"><strong>WiiLink WFC</strong><small>Live activity detail</small></div><div class="empty-state">WiiLink live room details are currently unavailable.</div></section>';
+
+    return '<div class="network-live-grid">' + wiimmfiSection + wiilinkSection + '</div>';
   }
 
   function renderNetworks() {
@@ -370,7 +439,7 @@
       '<section class="panel network-notes"><div class="panel-head"><div class="panel-title"><strong>Coverage and data boundaries</strong><small>Each online service publishes a different amount of public telemetry</small></div><span class="panel-kicker">DATA NOTES</span></div><div class="panel-body">' +
       '<div class="coverage-row"><b>Retro WFC / Retro Rewind</b><p>Full integration: active rooms and players, VR / BR, public VR leaderboard, player history, recorded races, finish positions, character and vehicle selections, combo analytics, and the server-reported all-time room-population peak.</p></div>' +
       '<div class="coverage-row"><b>Wiimmfi</b><p>Mario Kart Wii-specific machine-readable status feed. It reports online status, player names, room IDs, region and whether a player is in a race, battle, searching or connecting. Its public status feed does not supply a compatible historical race-result archive or the Retro WFC VR scale, so those stats are not invented or mixed.</p></div>' +
-      '<div class="coverage-row"><b>WiiLink WFC</b><p>The official browser covers multiple Wii games. Its page response does not currently expose a reliable Mario Kart Wii-only count to this static site, so it is linked and monitored for availability but excluded from the combined number until a game-specific count is available.</p></div>' +
+      '<div class="coverage-row"><b>WiiLink WFC</b><p>Full live MKWii integration through the public WFC API: game-specific online and active player counts, room counts, room IDs, public/private type, current course and engine class, player names, friend codes, versus ELO and battle ELO. Its public API does not provide a persistent historical race-result archive, so no historical race totals or finish records are fabricated.</p></div>' +
       '<div class="coverage-row"><b>Other/private WFC services</b><p>Private servers and other revival projects can be added when they provide a verifiable Mario Kart Wii-specific status feed. Generic all-game counts and unverified mirrors are intentionally excluded.</p></div>' +
       '<p class="network-footnote">Browser-only deployment: upstream CORS and anti-bot rules may prevent the dashboard from reading a feed. The site reports unavailable data rather than substituting stale or fabricated values. Last network check: ' + esc(lastUpdate) + '.</p>' +
       '</div></section>';
