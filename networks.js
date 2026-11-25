@@ -263,7 +263,7 @@
     };
   }
 
-    function parseWiiLinkSnapshot(statsPayload, groupPayload) {
+    function parseWiiLinkSnapshot(statsPayload, groupPayload, groupDetailsAvailable) {
     if (!statsPayload || typeof statsPayload !== "object" || Array.isArray(statsPayload) || !Array.isArray(groupPayload)) return null;
 
     const gameKey = Object.keys(statsPayload).find(key => key.toLowerCase() === "mariokartwii");
@@ -313,8 +313,10 @@
     const roomCount = number(gameStats.groups) !== null ? Number(gameStats.groups) : rooms.length;
 
     return {
-      onlinePlayers, onlineSessions,
-      activePlayers, activeSessions,
+      onlinePlayers: groupDetailsAvailable === false ? null : onlinePlayers,
+      onlineSessions,
+      activePlayers: groupDetailsAvailable === false ? null : activePlayers,
+      activeSessions,
       rooms: roomCount, roomGroups: rooms,
       status: "live",
       detail: "Live Mario Kart Wii stats and room details from WiiLink's public API",
@@ -371,7 +373,7 @@
     }
 
     const groupsPayload = groupsResult.status === "fulfilled" ? groupsResult.value : [];
-    const parsed = parseWiiLinkSnapshot(statsResult.value, groupsPayload);
+    const parsed = parseWiiLinkSnapshot(statsResult.value, groupsPayload, groupsResult.status === "fulfilled");
     if (!parsed) {
       networkState.wiilink = {
         name: "WiiLink WFC", onlinePlayers: null, activePlayers: null,
@@ -391,7 +393,7 @@
       regions: [],
       error: groupError,
       detail: groupError
-        ? "Population stats are live; room/player detail endpoint failed"
+        ? "Console/session and room totals are live; player-slot counts are withheld because room detail failed"
         : "Live Mario Kart Wii population, rooms, player ELO and connection telemetry"
     }, parsed, {
       status: groupError ? "partial" : "live"
