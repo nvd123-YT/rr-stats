@@ -235,14 +235,16 @@ function leaderboardRows(players) {
 }
 function renderOverview() {
   const global = state.globalStats || {};
-  const rooms = state.rooms.slice(0, 4);
-  const topPlayers = state.leaderboard.slice(0, 6);
+  const rooms = analyticsItems(state.rooms, 4);
+  const topPlayers = analyticsItems(state.leaderboard, 6);
+  const recentRaces = analyticsItems(state.races, 8);
   return '<div class="dashboard-grid"><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Race activity // last 7 days</strong><small>Recorded finish events across the Retro Rewind network</small></div><span class="panel-kicker">ACTIVITY</span></div><div class="panel-body">' + barChart(safeList(global.racesByDayOfWeek), "dayName", "raceCount") + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Combo meta // all tracked</strong><small>Most-used character + vehicle combinations</small></div><span class="panel-kicker">SETUPS</span></div><div class="panel-body">' + rankList(global.topCombos, "name", "raceCount", " RACES") + '</div></section></div>' +
   '<div class="lower-grid"><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Live rooms // sample</strong><small>Current room snapshot from RWFC</small></div><button class="quiet-button" data-action="goto" data-view="rooms">ALL ROOMS ↗</button></div><div class="panel-body">' + (rooms.length ? '<div class="room-grid">' + rooms.map(roomCard).join("") + '</div>' : '<div class="empty-state">NO LIVE ROOM DATA</div>') + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>VR leaders</strong><small>Highest current player ratings</small></div><button class="quiet-button" data-action="goto" data-view="players">FULL BOARD ↗</button></div><div class="panel-body">' + (topPlayers.length ? '<div class="rank-list">' + topPlayers.map((p, i) => '<div class="rank-row"><span class="rank-number">' + String(i + 1).padStart(2, "0") + '</span><span class="rank-name">' + playerButton(p) + '</span><span class="rank-value">' + fmt(p.vr) + ' VR</span></div>').join("") + '</div>' : '<div class="empty-state">LEADERBOARD UNAVAILABLE</div>') + '</div></section></div>' +
-  '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Latest recorded races</strong><small>Each result expands to the full finishing order and player setups</small></div><button class="quiet-button" data-action="goto" data-view="races">OPEN RACE ARCHIVE ↗</button></div>' + raceTable(state.races.slice(0, 8), "NO RECENT RACES RETURNED") + '</section>';
+  '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Latest recorded races</strong><small>Each result expands to the full finishing order and player setups</small></div><button class="quiet-button" data-action="goto" data-view="races">OPEN RACE ARCHIVE ↗</button></div>' + raceTable(recentRaces, "NO RECENT RACES RETURNED") + '</section>';
 }
 function renderRooms() {
-  return '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Live room browser</strong><small>' + fmt(state.rooms.length) + ' rooms in the latest captured snapshot · refreshes every 20 seconds</small></div><input id="roomSearch" class="searchbar room-search" placeholder="Filter by room, track or player…" autocomplete="off"></div><div class="panel-body"><div id="roomGrid" class="room-grid">' + (state.rooms.length ? state.rooms.map(roomCard).join("") : '<div class="empty-state">NO ACTIVE ROOMS REPORTED BY RWFC</div>') + '</div></div></section><div class="section-spacer"></div><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Population history</strong><small>Recorded network player and room counts</small></div><span class="panel-kicker">7 DAY VIEW</span></div><div class="panel-body">' + barChart(safeList(state.roomAnalytics).slice(-14).map(point => ({ dayName: new Date(point.timestamp).toLocaleDateString([], { weekday: "short", hour: "numeric" }), raceCount: point.players })), "dayName", "raceCount") + '</div></section>';
+  const history = state.detailedAnalytics ? safeList(state.roomAnalytics) : safeList(state.roomAnalytics).slice(-14);
+  return '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Live room browser</strong><small>' + fmt(state.rooms.length) + ' rooms in the latest captured snapshot · refreshes every 20 seconds</small></div><input id="roomSearch" class="searchbar room-search" placeholder="Filter by room, track or player…" autocomplete="off"></div><div class="panel-body"><div id="roomGrid" class="room-grid">' + (state.rooms.length ? state.rooms.map(roomCard).join("") : '<div class="empty-state">NO ACTIVE ROOMS REPORTED BY RWFC</div>') + '</div></div></section><div class="section-spacer"></div><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Population history</strong><small>' + fmt(history.length) + ' recorded samples in the available 7-day feed</small></div><span class="panel-kicker">7 DAY VIEW</span></div><div class="panel-body">' + barChart(history.map(point => ({ dayName: new Date(point.timestamp).toLocaleDateString([], { weekday: "short", hour: "numeric" }), raceCount: point.players })), "dayName", "raceCount") + '</div></section>';
 }
 function renderRaces() {
   const f = state.raceFilters;
@@ -307,8 +309,8 @@ async function initialLoad() {
     api("/roomstatus/stats"),
     api("/roomstatus/analytics?days=7"),
     api("/racestats/global?days=30"),
-    api("/racestats/races?page=1&pageSize=12"),
-    api("/leaderboard?page=1&pageSize=10&sortBy=vr&ascending=false")
+    api("/racestats/races?page=1&pageSize=" + (state.detailedAnalytics ? 50 : 12)),
+    api("/leaderboard?page=1&pageSize=" + (state.detailedAnalytics ? 50 : 10) + "&sortBy=vr&ascending=false")
   ];
   const results = await Promise.allSettled(paths);
   state.errors = [];
@@ -321,7 +323,7 @@ async function initialLoad() {
   assign(2, value => { state.roomAnalytics = safeList(value); }, "population history");
   assign(3, value => { state.globalStats = value; }, "global race statistics");
   assign(4, value => { const page = normalizePage(value); state.races = page.items; state.raceTotal = page.totalCount; }, "race archive");
-  assign(5, value => { const page = normalizePage({ items: value && value.players, totalCount: value && value.totalCount, totalPages: value && value.totalPages, currentPage: value && value.currentPage }); state.leaderboard = page.items; }, "VR leaderboard");
+  assign(5, value => { const page = normalizePage({ items: value && value.players, totalCount: value && value.totalCount, totalPages: value && value.totalPages, currentPage: value && value.currentPage }); state.leaderboard = page.items; state.leaderboardTotal = page.totalCount; state.leaderboardPages = page.totalPages; }, "VR leaderboard");
   state.loading = false;
   updateMetrics();
   updateTimestamp();
@@ -333,6 +335,26 @@ async function initialLoad() {
     setNotice(state.errors.length ? "Some feeds did not respond: " + state.errors.join(", ") + ". Available sections remain usable; refresh to retry." : "");
   }
   renderView();
+}
+async function refreshOverviewCollections() {
+  if (!state.detailedAnalytics) return;
+  const results = await Promise.allSettled([
+    api("/racestats/races?page=1&pageSize=50"),
+    api("/leaderboard?page=1&pageSize=50&sortBy=vr&ascending=false")
+  ]);
+  if (results[0].status === "fulfilled") {
+    const page = normalizePage(results[0].value);
+    state.races = page.items;
+    state.raceTotal = page.totalCount;
+    state.racePages = page.totalPages;
+  }
+  if (results[1].status === "fulfilled") {
+    const payload = results[1].value || {};
+    state.leaderboard = safeList(payload.players);
+    state.leaderboardTotal = Number(payload.totalCount) || state.leaderboard.length;
+    state.leaderboardPages = Number(payload.totalPages) || 1;
+  }
+  if (state.view === "overview") renderView();
 }
 async function refreshLive() {
   const results = await Promise.allSettled([api("/roomstatus"), api("/roomstatus/stats")]);
@@ -351,13 +373,13 @@ async function refreshSlow() {
   const results = await Promise.allSettled([
     api("/racestats/global?days=30"),
     api("/roomstatus/analytics?days=7"),
-    api("/racestats/races?page=1&pageSize=12"),
-    api("/leaderboard?page=1&pageSize=10&sortBy=vr&ascending=false")
+    api("/racestats/races?page=1&pageSize=" + (state.detailedAnalytics ? 50 : 12)),
+    api("/leaderboard?page=1&pageSize=" + (state.detailedAnalytics ? 50 : 10) + "&sortBy=vr&ascending=false")
   ]);
   if (results[0].status === "fulfilled") state.globalStats = results[0].value;
   if (results[1].status === "fulfilled") state.roomAnalytics = safeList(results[1].value);
   if (results[2].status === "fulfilled") { const page = normalizePage(results[2].value); state.races = page.items; state.raceTotal = page.totalCount; }
-  if (results[3].status === "fulfilled") state.leaderboard = safeList(results[3].value && results[3].value.players);
+  if (results[3].status === "fulfilled") { state.leaderboard = safeList(results[3].value && results[3].value.players); state.leaderboardTotal = Number(results[3].value && results[3].value.totalCount) || state.leaderboard.length; state.leaderboardPages = Number(results[3].value && results[3].value.totalPages) || 1; }
   updateMetrics();
   if (state.view === "overview" || state.view === "meta") renderView();
   updateTimestamp();
@@ -500,6 +522,8 @@ document.addEventListener("click", event => {
     updateAnalyticsModeButton();
     if (typeof window.renderView === "function") window.renderView();
     else renderView();
+    if (state.detailedAnalytics) refreshOverviewCollections();
+    if (state.view === "time-trials" && typeof window.refreshTimeTrialDetailMode === "function") window.refreshTimeTrialDetailMode();
     return;
   }
   if (action === "goto") {
