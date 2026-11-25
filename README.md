@@ -22,7 +22,7 @@ A static GitHub Pages dashboard for Mario Kart Wii online activity across public
 | Network | Live MKWii population | Rooms / players | VR + race history |
 |---|---|---|---|
 | Retro WFC / Retro Rewind | Yes, current room snapshot | Yes | Yes, full public dataset available from RWFC |
-| Wiimmfi | From whichever public count feed is readable | Status text can expose player rosters, rooms, regions, access type, match scope and role/state flags | No compatible public historical VR / race-results archive; richer room/race protocol records need an authorized export or client capture |
+| Wiimmfi | Yes, from the public room-count JSON feed | JSON snapshot: room ID, region and player count where supplied. Names, roles and richer room detail require the separate status feed, which may be blocked by Cloudflare | No compatible public historical VR / race-results archive; richer room/race protocol records need an authorized export or client capture |
 | WiiLink WFC | Yes, from its public game-specific API | Yes: live room IDs, type, course, engine class, player names, friend codes, VS ELO and Battle ELO | No persistent historical race-result archive in the public API; ELO is not relabelled as VR |
 
 WiiLink WFC is queried through the official public API host `api.wfc.wiilink24.com` and its game-filtered GET endpoints: `https://api.wfc.wiilink24.com/api/stats?game=mariokartwii` and `https://api.wfc.wiilink24.com/api/groups?game=mariokartwii`. These endpoints expose game-specific counts, active groups, live rosters and the fields listed above. The backend explicitly enables cross-origin reads for GET requests. Its ELO fields remain labelled VS / Battle ELO and are not merged with Retro WFC VR / BR.
