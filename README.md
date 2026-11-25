@@ -14,14 +14,14 @@ A static GitHub Pages dashboard for Mario Kart Wii online activity across public
 - **Race performance:** tracked races, character and vehicle selections, exact combos, win rate, track performance, finish distribution, and kart / bike split.
 - **Global meta:** character pick rates, vehicle usage, character + vehicle combo usage, character / vehicle / combo win rates, track frequency, most active players, day-of-week and hourly activity.
 - **Time trials:** per-track world records and ranked ghost submissions, 3-lap and fastest-lap boards, 150cc / 200cc, retro / custom, glitch, shroomless, kart and bike filters, record-history timelines, TT player profiles, ghost-file downloads when available, and CSV export.
-- **Wiimmfi live activity:** public Mario Kart Wii status records parsed into current online player slots, player names, room IDs, region and coarse play state (race, battle, searching, connecting or online), when the public feed is readable.
+- **Wiimmfi live activity:** online slots, player names, room IDs, region, race / battle / searching / connecting states, active status, public/private room state, worldwide/continental scope, and host/guest/viewer roles when its status-text feed is readable.
 
 ## Network coverage
 
 | Network | Live MKWii population | Rooms / players | VR + race history |
 |---|---|---|---|
 | Retro WFC / Retro Rewind | Yes, current room snapshot | Yes | Yes, full public dataset available from RWFC |
-| Wiimmfi | Yes, public machine-readable MKWii status feed | Yes, status records expose online players and room IDs | Not included: the public status feed does not provide a compatible historical VR / race-results database |
+| Wiimmfi | From whichever public count feed is readable | Status text can expose player rosters, rooms, regions, access type, match scope and role/state flags | No compatible public historical VR / race-results archive; richer room/race protocol records need an authorized export or client capture |
 | WiiLink WFC | Yes, from its public game-specific API | Yes: live room IDs, type, course, engine class, player names, friend codes, VS ELO and Battle ELO | No persistent historical race-result archive in the public API; ELO is not relabelled as VR |
 
 WiiLink WFC is queried through its public game-filtered GET endpoints: `/api/stats?game=mariokartwii` and `/api/groups?game=mariokartwii`. These endpoints expose game-specific counts, active groups, live rosters and the fields listed above. The backend explicitly enables cross-origin reads for GET requests. Its ELO fields remain labelled VS / Battle ELO and are not merged with Retro WFC VR / BR.
@@ -33,7 +33,7 @@ Other WFC revival and private servers can be added once a public, machine-readab
 - [Retro WFC](https://rwfc.net/) public API: room status, leaderboard, VR history, race results, player statistics, time-trial records and population peaks.
 - [Wiimmfi Mario Kart Wii statistics](https://wiimmfi.de/stats/mkw): official room statistics page.
 - [Wiimmfi legacy JSON feed](https://wiimmfi.de/stats/mkwx?m=json): room records with `type=room`, `region`, and `n_players`; this feed may be deprecated and is used as the first machine-readable source when it remains available.
-- [Wiimmfi online-status text](https://wiimmfi.de/stats/game/mariokartwii/text): fallback machine-readable status records. The parser uses the documented `ol_status` bit field and `np` console-player count. Automated access may be blocked by Cloudflare.
+- [Wiimmfi online-status text](https://wiimmfi.de/stats/game/mariokartwii/text): fallback machine-readable status records. The parser uses documented `ol_status` flags and `np` console-player count to classify race/battle/search/connect state, active state, private/public rooms, worldwide/continental scope and host/guest/viewer roles. Automated access may be blocked by Cloudflare.
 - [WiiLink WFC online browser](https://wfc.wiilink.ca/online): official online browser.
 - [WiiLink WFC public API](https://wfc.wiilink.ca/api/stats?game=mariokartwii) and [live rooms](https://wfc.wiilink.ca/api/groups?game=mariokartwii): public game-specific JSON feeds.
 
@@ -51,7 +51,9 @@ The existing Retro WFC feeds include:
 - The combined number sums the current MKWii counts that are available. It is a sum of network-reported player slots, not a deduplicated count of unique humans.
 - Race history, VR, finish positions and character/vehicle analytics are only shown where the source publishes those fields. Data from one server is never attributed to another.
 - WiiLink VS ELO / Battle ELO and Retro WFC VR / BR are different rating systems and remain separately labelled.
-- Browser CORS rules, anti-bot protection or upstream outages can make a feed temporarily unavailable. The dashboard reports that limitation rather than inventing a value.
+- Wiimmfi player flags are live status, not a historical race archive. The protocol also defines `wiimmfi=room` and `wiimmfi=race` records with richer membership, track and race-counter data, but the public status-text feed is not assumed to expose those records. A future integration needs an authorized export or opt-in client/network-capture collector. Item usage is not exposed by Wiimmfi's server-side telemetry.
+- WiiLink connection-map / failed-link fields are shown only for live groups. If the stats endpoint works but the groups endpoint fails, the site preserves session counts but withholds the total player-slot count rather than guessing split-screen slots.
+- Browser CORS rules, anti-bot protection or upstream outages can make a feed temporarily unavailable. The dashboard reports endpoint-specific diagnostics rather than inventing a value.
 - The site does not query console credentials, private profile data or player devices.
 
 ## Publish with GitHub Pages
