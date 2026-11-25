@@ -41,7 +41,7 @@
   function decodeBase64(value) {
     if (!value) return "";
     try {
-      let encoded = value.trim().replace(/\\*/g, "=").replace(/-/g, "+").replace(/_/g, "/");
+      let encoded = value.trim().replace(/\\*/g, "=").replace(/\./g, "+").replace(/-/g, "/");
       encoded += "=".repeat((4 - encoded.length % 4) % 4);
       const binary = atob(encoded);
       const bytes = Uint8Array.from(binary, character => character.charCodeAt(0));
