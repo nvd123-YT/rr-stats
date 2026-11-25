@@ -327,6 +327,7 @@
       '<div class="network-numbers"><div><span>MKWII PLAYERS ONLINE</span><b>' + fmt(provider.onlinePlayers) + '</b></div><div><span>ACTIVE ROOMS</span><b>' + fmt(provider.rooms) + '</b></div></div>' +
       substats +
       '<p class="network-detail">' + esc(provider.detail || "") + '</p>' +
+      '<p class="network-checked">LAST SOURCE UPDATE · ' + esc(localTime(provider.updatedAt)) + '</p>' +
       '<div class="network-capabilities">' + features + '</div>' +
       '<a class="network-external" href="' + esc(provider.url) + '" target="_blank" rel="noopener noreferrer">OPEN OFFICIAL SOURCE ↗</a>' +
       '</article>';
