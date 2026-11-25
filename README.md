@@ -10,7 +10,8 @@ A static GitHub Pages dashboard for Retro Rewind / Mario Kart Wii network statis
 - **Player records:** searchable VR leaderboard, rank, 24-hour movement, last seen, and individual player dossiers.
 - **VR history:** player history chart and 30-day change feed where the player's public history is available.
 - **Race performance:** each player's tracked races, character and vehicle selections, exact combos, win rate, track performance, finish distribution, and kart / bike split.
-- **Global meta:** character pick rates, vehicle usage, character + vehicle combo usage, combo win rates, track frequency, most active players, day-of-week and hourly activity.
+- **Global meta:** character pick rates, vehicle usage, character + vehicle combo usage, character / vehicle / combo win rates, track frequency, most active players, day-of-week and hourly activity.
+- **Time trials:** per-track world records and ranked ghost submissions, 3-lap and fastest-lap boards, 150cc / 200cc, retro / custom, glitch, shroomless, kart and bike filters, record-history timelines, TT player profiles, ghost-file downloads when available, and CSV export.
 - **Local watchlist:** save players in this browser, plus CSV export for the race page.
 
 ## Data sources
@@ -22,6 +23,7 @@ This site uses the documented public RWFC web API, including:
 - `/api/roomstatus`, `/api/roomstatus/stats`, `/api/roomstatus/analytics`
 - `/api/leaderboard`, `/api/leaderboard/player/{friendCode}`, `/api/leaderboard/player/{friendCode}/history`
 - `/api/racestats/global`, `/api/racestats/races`, `/api/racestats/player/{pid}`, and the player's analytics endpoint
+- `/api/timetrial/tracks`, `/api/timetrial/leaderboard`, `/api/timetrial/leaderboard/flap`, `/api/timetrial/worldrecords/all`, `/api/timetrial/worldrecord/history`, and `/api/timetrial/profile/{id}`
 
 The official RWFC backend enables cross-origin read access for its production frontend API. The site polls live room data every 20 seconds and refreshes aggregate/race summaries every 60 seconds. Searches and pagination load additional pages on demand.
 
