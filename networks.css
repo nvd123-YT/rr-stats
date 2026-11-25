@@ -49,3 +49,5 @@
 .network-live-grid .panel-title{margin:0 0 10px}
 .network-live-grid .data-table{min-width:420px}
 @media(max-width:760px){.network-live-grid{grid-template-columns:1fr}}
+
+.network-checked{font:8px var(--mono);color:#718391;letter-spacing:.55px;margin:-4px 0 12px}
