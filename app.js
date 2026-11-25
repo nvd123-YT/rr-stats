@@ -220,7 +220,8 @@ function setView(view) {
     rooms: ["RETRO WFC // ROOM SCANNER", "Find your <em>next room.</em>", "Live Retro WFC rooms, player VR / BR, room status and current course."],
     races: ["RETRO WFC // RACE LOGS", "Every race, <em>on record.</em>", "Search Retro WFC results by room, player, track, engine class or date."],
     players: ["RETRO WFC // VR RANKINGS", "Know the <em>competition.</em>", "Browse Retro WFC player VR, recent movement and full player histories."],
-    meta: ["RETRO WFC // COMBO LAB", "Read the <em>meta.</em>", "Retro WFC character, vehicle, combo, track and win-rate analytics from recorded races."]
+    meta: ["RETRO WFC // COMBO LAB", "Read the <em>meta.</em>", "Retro WFC character, vehicle, combo, track and win-rate analytics from recorded races."],
+    networks: ["MARIO KART WII // CROSS-SERVER TELEMETRY", "One grid, <em>every server.</em>", "Compare live Mario Kart Wii populations, active rooms and network-specific player details."]
   };
   const h = headings[view] || headings.overview;
   $("#viewEyebrow").textContent = h[0];
@@ -235,6 +236,11 @@ function renderView() {
   else if (state.view === "races") root.innerHTML = renderRaces();
   else if (state.view === "players") root.innerHTML = renderPlayers();
   else if (state.view === "meta") root.innerHTML = renderMeta();
+  else if (state.view === "networks") {
+    root.innerHTML = window.rrNetworkStats && typeof window.rrNetworkStats.render === "function"
+      ? window.rrNetworkStats.render()
+      : '<div class="loading-state"><span class="loader"></span> Loading network feeds…</div>';
+  }
 }
 async function initialLoad() {
   state.loading = true;
