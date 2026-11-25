@@ -51,8 +51,15 @@ const MKW_TRACK_NAMES = Object.freeze({
 });
 function courseDisplayName(trackName, courseId) {
   const label = trackName == null ? "" : String(trackName).trim();
-  const labelMatch = label.match(/^(?:course|track)\s*#?\s*(0x[0-9a-f]+|[0-9]+)$/i);
-  const idValue = labelMatch ? labelMatch[1] : (label && /^[0-9]+$/.test(label) ? label : courseId);
+  const genericMatch = label.match(/^(?:(?:course|track)\s*#?\s*|custom\s+track(?:\s*[·:#-]?\s*id)?\s*#?\s*)(0x[0-9a-f]+|[0-9]+)$/i);
+  const isPlaceholder = !label || /^(?:—|-|n\/a|unknown(?:\s+track)?|none|null)$/i.test(label);
+  const isNumericLabel = /^[0-9]+$/.test(label);
+
+  // The feed's textual name is authoritative. In particular, do not replace
+  // custom-track names with a generic label just because courseId is present.
+  if (!isPlaceholder && !genericMatch && !isNumericLabel) return label;
+
+  const idValue = genericMatch ? genericMatch[1] : (isNumericLabel ? label : courseId);
   if (idValue !== null && idValue !== undefined && idValue !== "") {
     const idText = String(idValue).trim();
     const id = /^0x[0-9a-f]+$/i.test(idText) ? parseInt(idText, 16) : Number(idText);
