@@ -180,7 +180,7 @@
     const query = ttQuery(false);
     query.set("trackId", String(state.ttSelectedTrack));
     query.set("page", String(state.ttPage));
-    query.set("pageSize", "25");
+    query.set("pageSize", state.detailedAnalytics ? "100" : "25");
     const endpoint = state.ttFilters.mode === "flap" ? "/timetrial/leaderboard/flap?" : "/timetrial/leaderboard?";
     try {
       const result = await api(endpoint + query.toString());
@@ -203,7 +203,7 @@
     const query = ttQuery(false);
     const rankingQuery = ttQuery(true);
     rankingQuery.set("page", "1");
-    rankingQuery.set("pageSize", "10");
+    rankingQuery.set("pageSize", state.detailedAnalytics ? "100" : "10");
     const results = await Promise.allSettled([
       state.ttTracks.length ? Promise.resolve(state.ttTracks) : api("/timetrial/tracks"),
       api("/timetrial/worldrecords/all?" + query.toString()),
@@ -281,6 +281,23 @@
       setNotice(error.message);
     }
   }
+
+  window.refreshTimeTrialDetailMode = function refreshTimeTrialDetailMode() {
+    if (!state.ttLoaded) {
+      if (!state.ttLoading) loadTTData();
+      return;
+    }
+    const rankingQuery = ttQuery(true);
+    rankingQuery.set("page", "1");
+    rankingQuery.set("pageSize", state.detailedAnalytics ? "100" : "10");
+    api("/timetrial/rankings?" + rankingQuery.toString()).then(result => {
+      state.ttRankings = safeList(result && result.players);
+      if (state.view === "time-trials") window.renderView();
+    }).catch(error => {
+      setNotice("Time-trial rankings unavailable: " + error.message);
+    });
+    if (state.ttSelectedTrack) loadTTLeaderboard(state.ttPage || 1);
+  };
 
   const baseRenderView = window.renderView;
   window.renderView = function renderViewWithTimeTrials() {
