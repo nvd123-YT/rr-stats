@@ -489,7 +489,8 @@ document.addEventListener("click", event => {
     state.detailedAnalytics = !state.detailedAnalytics;
     try { localStorage.setItem("rrstats-detailed-analytics", state.detailedAnalytics ? "true" : "false"); } catch (_) {}
     updateAnalyticsModeButton();
-    renderView();
+    if (typeof window.renderView === "function") window.renderView();
+    else renderView();
     return;
   }
   if (action === "goto") {
