@@ -27,11 +27,46 @@
   <nav class="nav-wrap" aria-label="Main navigation">
     <div class="nav-tabs">
       <button class="nav-tab active" data-view="overview" type="button"><span>01</span> OVERVIEW</button>
-      <button class="nav-tab" data-view="rooms" type="button"><span>02</span> RWFC ROOMS</button>
-      <button class="nav-tab" data-view="races" type="button"><span>03</span> RWFC RACES</button>
-      <button class="nav-tab" data-view="players" type="button"><span>04</span> RWFC VR</button>
-      <button class="nav-tab" data-view="meta" type="button"><span>05</span> RWFC META</button>
-      <button class="nav-tab" data-view="time-trials" type="button"><span>06</span> RWFC TIME TRIALS</button>
+      <details class="nav-menu" data-nav-section="rooms">
+        <summary class="nav-tab">02 ROOMS <span class="nav-chevron">⌄</span></summary>
+        <div class="nav-dropdown" role="group" aria-label="ROOMS network pages">
+          <button class="nav-subtab" type="button" data-page="rooms" data-network="retro">RETRO WFC</button>
+          <button class="nav-subtab" type="button" data-page="rooms" data-network="wiimmfi">WIIMMFI</button>
+          <button class="nav-subtab" type="button" data-page="rooms" data-network="wiilink">WIILINK WFC</button>
+        </div>
+      </details>
+      <details class="nav-menu" data-nav-section="players">
+        <summary class="nav-tab">03 PLAYERS <span class="nav-chevron">⌄</span></summary>
+        <div class="nav-dropdown" role="group" aria-label="PLAYERS network pages">
+          <button class="nav-subtab" type="button" data-page="players" data-network="retro">RETRO WFC</button>
+          <button class="nav-subtab" type="button" data-page="players" data-network="wiimmfi">WIIMMFI</button>
+          <button class="nav-subtab" type="button" data-page="players" data-network="wiilink">WIILINK WFC</button>
+        </div>
+      </details>
+      <details class="nav-menu" data-nav-section="races">
+        <summary class="nav-tab">04 RACES <span class="nav-chevron">⌄</span></summary>
+        <div class="nav-dropdown" role="group" aria-label="RACES network pages">
+          <button class="nav-subtab" type="button" data-page="races" data-network="retro">RETRO WFC</button>
+          <button class="nav-subtab" type="button" data-page="races" data-network="wiimmfi">WIIMMFI</button>
+          <button class="nav-subtab" type="button" data-page="races" data-network="wiilink">WIILINK WFC</button>
+        </div>
+      </details>
+      <details class="nav-menu" data-nav-section="meta">
+        <summary class="nav-tab">05 META <span class="nav-chevron">⌄</span></summary>
+        <div class="nav-dropdown" role="group" aria-label="META network pages">
+          <button class="nav-subtab" type="button" data-page="meta" data-network="retro">RETRO WFC</button>
+          <button class="nav-subtab" type="button" data-page="meta" data-network="wiimmfi">WIIMMFI</button>
+          <button class="nav-subtab" type="button" data-page="meta" data-network="wiilink">WIILINK WFC</button>
+        </div>
+      </details>
+      <details class="nav-menu" data-nav-section="time-trials">
+        <summary class="nav-tab">06 TIME TRIALS <span class="nav-chevron">⌄</span></summary>
+        <div class="nav-dropdown" role="group" aria-label="TIME TRIALS network pages">
+          <button class="nav-subtab" type="button" data-page="time-trials" data-network="retro">RETRO WFC</button>
+          <button class="nav-subtab" type="button" data-page="time-trials" data-network="wiimmfi">WIIMMFI</button>
+          <button class="nav-subtab" type="button" data-page="time-trials" data-network="wiilink">WIILINK WFC</button>
+        </div>
+      </details>
       <button class="nav-tab" data-view="networks" type="button"><span>07</span> NETWORKS</button>
     </div>
     <div class="nav-live"><b class="pulse"></b> LIVE DATA <span id="lastUpdated">—</span></div>
