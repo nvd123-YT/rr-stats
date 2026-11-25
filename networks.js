@@ -234,18 +234,21 @@
       });
 
     const roomPlayerSlots = rooms.reduce((sum, room) => sum + room.playerSlots, 0);
-    const onlinePlayers = number(gameStats.online) !== null
-      ? Number(gameStats.online)
-      : roomPlayerSlots;
-    const activePlayers = number(gameStats.active) !== null
-      ? Number(gameStats.active)
-      : roomPlayerSlots;
+    const roomConsoleSessions = rooms.reduce((sum, room) => sum + room.players.length, 0);
+    // /api/stats counts GameSpy sessions (consoles); room player records also expose
+    // local-player slots, so add only the extra split-screen slots to the session total.
+    const extraLocalSlots = Math.max(0, roomPlayerSlots - roomConsoleSessions);
+    const onlineSessions = number(gameStats.online);
+    const onlinePlayers = (onlineSessions === null ? roomConsoleSessions : onlineSessions) + extraLocalSlots;
+    const activeSessions = number(gameStats.active);
+    const activePlayers = (activeSessions === null ? roomConsoleSessions : activeSessions) + extraLocalSlots;
     const roomCount = number(gameStats.groups) !== null
       ? Number(gameStats.groups)
       : rooms.length;
 
     return {
       onlinePlayers,
+      onlineSessions,
       activePlayers,
       rooms: roomCount,
       roomGroups: rooms,
@@ -362,7 +365,7 @@
         capability("Friend codes", "yes", true) +
         capability("VS / Battle ELO", "yes", true) +
         capability("Historical race archive", "not exposed", false);
-      substats = '<div class="network-substats"><div><b>' + fmt(provider.activePlayers) + '</b><span>ACTIVE PLAYERS</span></div><div><b>' + fmt(provider.rooms) + '</b><span>LIVE ROOMS</span></div></div>';
+      substats = '<div class="network-substats"><div><b>' + fmt(provider.activePlayers) + '</b><span>ACTIVE PLAYER SLOTS</span></div><div><b>' + fmt(provider.onlineSessions) + '</b><span>ONLINE CONSOLES</span></div></div>';
     }
     return '<article class="network-card">' +
       '<div class="network-card-head"><div><div class="network-name">' + esc(provider.name) + '</div><div class="network-source">' + esc(provider.key === "retro" ? "RETRO REWIND / RETRO WFC" : provider.key === "wiimmfi" ? "WIIMMFI PROJECT" : "WIILINK TEAM") + '</div></div>' + statusLabel(provider) + '</div>' +
