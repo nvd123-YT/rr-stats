@@ -224,3 +224,9 @@ h1 em{font-style:normal;color:var(--lime)}
   .network-section-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .network-player-row{grid-template-columns:1fr 1fr;gap:6px}
 }
+
+.detail-mode-toggle{padding:8px 10px;background:#121b24;border:1px solid var(--line);border-radius:7px;color:#a8b7c2;font:8px var(--mono);letter-spacing:.65px;white-space:nowrap;transition:.18s}
+.detail-mode-toggle:hover{background:#1b2a35;color:#edf3f6;border-color:#506575}
+.detail-mode-toggle.enabled{color:var(--lime);border-color:rgba(200,255,77,.45);background:rgba(200,255,77,.08)}
+.detail-mode-toggle:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+@media(max-width:620px){.topbar-right{gap:8px}.detail-mode-toggle{padding:7px 8px;font-size:7px}}
