@@ -26,9 +26,14 @@ jobs:
         run: |
           node --check app.js
           node --check app-fixes.js
+          node --check networks.js
 
       - name: Verify Pages entry points
         run: |
           test -f index.html
           test -f styles.css
           test -f favicon.svg
+          test -f networks.css
+          grep -q 'data-page="rooms" data-network="retro"' index.html
+          grep -q 'data-page="rooms" data-network="wiimmfi"' index.html
+          grep -q 'data-page="rooms" data-network="wiilink"' index.html
