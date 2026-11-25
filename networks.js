@@ -461,26 +461,6 @@
     if (root) root.innerHTML = renderNetworks();
   }
 
-  const originalSetView = window.setView;
-  if (typeof originalSetView === "function") {
-    window.setView = function (view) {
-      if (view === "networks") {
-        appState().view = "networks";
-        setNetworkView();
-      } else {
-        originalSetView(view);
-      }
-    };
-  }
-
-  const originalRenderView = window.renderView;
-  if (typeof originalRenderView === "function") {
-    window.renderView = function () {
-      if (appState().view === "networks") setNetworkView();
-      else originalRenderView();
-    };
-  }
-
   const originalUpdateMetrics = window.updateMetrics;
   if (typeof originalUpdateMetrics === "function") {
     window.updateMetrics = function () {
@@ -514,6 +494,7 @@
 
   window.rrNetworkStats = {
     refresh: refreshNetworks,
+    render: renderNetworks,
     getSnapshot: () => ({
       combinedPlayers: combined("onlinePlayers"),
       combinedRooms: combined("rooms"),
