@@ -545,20 +545,23 @@
         (player.friendCode ? esc(player.friendCode) + " · " : "") +
         'VS ' + fmt(player.versusElo) + ' / BT ' + fmt(player.battleElo) +
         (player.consolePlayers > 1 ? " · " + player.consolePlayers + "P" : "") +
+        (player.connectionMap ? " · LINK " + player.connectionMap : "") +
         (player.connectionFailures ? " · " + player.connectionFailures + " failed links" : "") +
+        (player.miis && player.miis.length && player.miis[0].name ? " · Mii " + esc(player.miis[0].name) : "") +
         '</span></div>'
       ).join("");
       return '<tr><td class="mono">' + esc(room.id) + '</td><td>' + esc(room.type) +
-        (room.suspended ? ' · SUSPENDED' : '') + '</td><td>' + esc(course) +
-        (race.num == null ? "" : " · Race " + esc(race.num)) +
+        (room.suspended ? ' · SUSPENDED' : '') + '</td><td>' + esc(room.region || "—") +
+        '</td><td>' + esc(room.created ? localTime(room.created) : "—") + (room.host ? " · HOST " + esc(room.host) : "") +
+        '</td><td>' + esc(course) + (race.num == null ? "" : " · Race " + esc(race.num)) +
         (race.cc == null ? "" : " · " + esc(race.cc) + " CC") + '</td><td>' +
         fmt(room.playerSlots) + '<div class="network-room-players">' + players + '</div></td></tr>';
     }).join("");
 
     const wiilinkSection = wiilink.status === "live" || wiilink.status === "partial"
       ? '<section><div class="panel-title"><strong>WiiLink WFC</strong><small>Live rooms, player ELO and connection telemetry</small></div>' +
-        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>TYPE</th><th>RACE / COURSE</th><th>PLAYERS · VS / BATTLE ELO</th></tr></thead><tbody>' +
-        (wiilinkRooms || '<tr><td colspan="4">No active room records</td></tr>') +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>TYPE</th><th>REGION</th><th>CREATED / HOST</th><th>RACE / COURSE</th><th>PLAYERS · VS / BATTLE ELO</th></tr></thead><tbody>' +
+        (wiilinkRooms || '<tr><td colspan="6">No active room records</td></tr>') +
         '</tbody></table></div></section>'
       : '<section><div class="panel-title"><strong>WiiLink WFC</strong><small>Live activity detail</small></div><div class="empty-state">WiiLink live room details are currently unavailable. ' + esc(wiilink.error || "") + '</div></section>';
 
