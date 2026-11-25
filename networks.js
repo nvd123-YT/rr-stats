@@ -640,6 +640,7 @@
         ? networkPanel("Room rosters", "Player-level status text feed", renderWiimmfiPlayerRows(w.players))
         : networkPanel("Room roster coverage", "Player-level text status feed",
           '<p class="network-section-note">Wiimmfi room totals are available, but its player-status text feed did not load. This means room-level player names, exact per-player state and roster details are not currently available from this browser session.</p>' +
+          '<p style="margin-top:10px"><a class="network-external" href="' + esc(WIIMMFI_URL) + '" target="_blank" rel="noopener noreferrer">OPEN RAW PLAYER-STATUS FEED ↗</a></p>' +
           (w.error ? '<p class="network-error" style="margin-top:10px">' + esc(w.error) + '</p>' : '')));
     return body;
   }
@@ -667,6 +668,7 @@
         w.players && w.players.length
           ? renderWiimmfiPlayerRows(w.players)
           : '<p class="network-section-note">The room-count feed can be read, but the separate Wiimmfi player-status text feed failed. Player names, roles and per-player room state will appear here when that feed is accessible.</p>' +
+            '<p style="margin-top:10px"><a class="network-external" href="' + esc(WIIMMFI_URL) + '" target="_blank" rel="noopener noreferrer">OPEN RAW PLAYER-STATUS FEED ↗</a></p>' +
             (w.error ? '<p class="network-error" style="margin-top:10px">' + esc(w.error) + '</p>' : ''));
   }
 
