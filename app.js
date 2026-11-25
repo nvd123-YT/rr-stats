@@ -43,10 +43,10 @@ const MKW_TRACK_NAMES = Object.freeze({
   20:"DS Yoshi Falls",21:"DS Desert Hills",22:"DS Peach Gardens",23:"DS Delfino Square",
   24:"SNES Mario Circuit 3",25:"SNES Ghost Valley 2",26:"N64 Mario Raceway",27:"N64 Sherbet Land",
   28:"N64 Bowser's Castle",29:"N64 DK's Jungle Parkway",30:"GBA Bowser Castle 3",31:"GBA Shy Guy Beach",
-  32:"Delfino Pier",33:"Block Plaza",34:"Chain Chomp Roulette",35:"Funky Stadium",
+  32:"Delfino Pier",33:"Block Plaza",34:"Chain Chomp Wheel",35:"Funky Stadium",
   36:"Thwomp Desert",37:"GCN Cookie Land",38:"DS Twilight House",39:"SNES Battle Course 4",
   40:"GBA Battle Course 3",41:"N64 Skyscraper",54:"Galaxy Colosseum",
-  55:"Winning Scene",56:"Losing Scene",57:"Luigi Circuit (Credits)",58:"Broken Losing Scene",
+  55:"Winning Scene",56:"Losing Scene",57:"Unused Draw Scene",58:"Luigi Circuit (Credits)",
   67:"No Track Selected",255:"Random Track"
 });
 function courseDisplayName(trackName, courseId) {
@@ -72,7 +72,7 @@ function updateAnalyticsModeButton() {
   const button = $("#detailModeToggle");
   if (!button) return;
   const enabled = !!state.detailedAnalytics;
-  button.textContent = enabled ? "ANALYTICS: ALL" : "ANALYTICS: TOP";
+  button.textContent = enabled ? "DETAIL: ALL" : "DETAIL: TOP";
   button.setAttribute("aria-pressed", enabled ? "true" : "false");
   button.classList.toggle("enabled", enabled);
   button.title = enabled
