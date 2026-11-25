@@ -306,8 +306,8 @@
     // /api/stats counts GameSpy sessions (consoles). Room player records also expose
     // local-player slots, so only split-screen extras are added to the console count.
     const extraLocalSlots = Math.max(0, roomPlayerSlots - roomConsoleSessions);
-    const onlineSessions = number(gameStats.online);
-    const activeSessions = number(gameStats.active);
+    const onlineSessions = gameKey ? number(gameStats.online) : 0;
+    const activeSessions = gameKey ? number(gameStats.active) : 0;
     const onlinePlayers = (onlineSessions === null ? 0 : onlineSessions) + extraLocalSlots;
     const activePlayers = (activeSessions === null ? 0 : activeSessions) + extraLocalSlots;
     const roomCount = number(gameStats.groups) !== null ? Number(gameStats.groups) : rooms.length;
