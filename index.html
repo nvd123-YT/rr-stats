@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#090d12">
+  <meta name="description" content="Live Retro Rewind Mario Kart Wii rooms, races, VR leaderboard, player profiles and combo analytics.">
+  <title>Retro Rewind Stats</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
+  <header class="topbar">
+    <a class="brand" href="#" aria-label="Retro Rewind Stats home" data-view="overview">
+      <span class="brand-mark">RR</span>
+      <span class="brand-copy"><strong>RETRO REWIND</strong><small>STATS / TELEMETRY</small></span>
+    </a>
+    <div class="topbar-right">
+      <a class="source-link" href="https://rwfc.net" target="_blank" rel="noreferrer">RWFC.NET <span>↗</span></a>
+      <span id="apiStatus" class="api-status"><i></i><span>CONNECTING</span></span>
+      <button id="refreshButton" class="icon-button" type="button" aria-label="Refresh stats" title="Refresh stats">↻</button>
+    </div>
+  </header>
+
+  <nav class="nav-wrap" aria-label="Main navigation">
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-view="overview" type="button"><span>01</span> OVERVIEW</button>
+      <button class="nav-tab" data-view="rooms" type="button"><span>02</span> LIVE ROOMS</button>
+      <button class="nav-tab" data-view="races" type="button"><span>03</span> RACE ARCHIVE</button>
+      <button class="nav-tab" data-view="players" type="button"><span>04</span> VR PLAYERS</button>
+      <button class="nav-tab" data-view="meta" type="button"><span>05</span> META / ANALYTICS</button>
+    </div>
+    <div class="nav-live"><b class="pulse"></b> LIVE DATA <span id="lastUpdated">—</span></div>
+  </nav>
+
+  <main class="shell">
+    <section class="page-heading">
+      <div>
+        <p class="eyebrow" id="viewEyebrow">RETRO REWIND // NETWORK INTELLIGENCE</p>
+        <h1 id="viewTitle">The grid, <em>right now.</em></h1>
+        <p id="viewSubtitle" class="subheading">Every room. Every racer. Every result RWFC makes available.</p>
+      </div>
+      <div class="heading-aside"><span class="season-label">MARIO KART WII</span><span class="heading-dot"></span><span>RETRO REWIND</span></div>
+    </section>
+
+    <div id="notice" class="notice" hidden></div>
+    <section id="metrics" class="metric-grid" aria-label="Network statistics">
+      <div class="metric-card"><div class="metric-label">PLAYERS ONLINE <span class="metric-symbol">◉</span></div><div class="metric-value" id="metricPlayers">—</div><div class="metric-foot" id="metricPlayersFoot">Live WFC population</div></div>
+      <div class="metric-card"><div class="metric-label">ACTIVE ROOMS <span class="metric-symbol">▦</span></div><div class="metric-value" id="metricRooms">—</div><div class="metric-foot" id="metricRoomsFoot">Public + private</div></div>
+      <div class="metric-card"><div class="metric-label">RACES TRACKED <span class="metric-symbol">⌁</span></div><div class="metric-value" id="metricRaces">—</div><div class="metric-foot" id="metricRacesFoot">RWFC race-result archive</div></div>
+      <div class="metric-card"><div class="metric-label">PLAYERS TRACKED <span class="metric-symbol">◎</span></div><div class="metric-value" id="metricPlayersTracked">—</div><div class="metric-foot" id="metricPlayersTrackedFoot">Unique recorded racers</div></div>
+    </section>
+
+    <section id="viewContent" class="view-content" aria-live="polite">
+      <div class="loading-state"><span class="loader"></span><span>Connecting to Retro WFC…</span></div>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-brand"><span class="brand-mark mini">RR</span><span>RETRO REWIND STATS</span></div>
+      <p>Independent community stats viewer. Data supplied by <a href="https://rwfc.net" target="_blank" rel="noreferrer">Retro WFC</a>; not affiliated with Nintendo or the Retro Rewind team.</p>
+      <p class="footer-right">Updates automatically · <a href="https://github.com/nvd123-YT/rr-stats" target="_blank" rel="noreferrer">SOURCE CODE ↗</a></p>
+    </footer>
+  </main>
+
+  <div id="detailOverlay" class="overlay" hidden>
+    <div class="overlay-backdrop" data-action="close-overlay"></div>
+    <section class="detail-panel" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <button class="close-button" type="button" data-action="close-overlay" aria-label="Close">×</button>
+      <div id="detailContent"><div class="loading-state"><span class="loader"></span> Loading…</div></div>
+    </section>
+  </div>
+
+  <script src="app.js" defer></script>
+</body>
+</html>
