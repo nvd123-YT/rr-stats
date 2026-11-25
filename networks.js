@@ -558,7 +558,7 @@
 
     const wiilinkRooms = (wiilink.roomGroups || []).slice(0, 60).map(room => {
       const race = room.race || {};
-      const course = race.course == null ? "—" : "Course " + race.course;
+      const course = race.course == null ? "—" : courseDisplayName(race.trackName || race.courseName, race.course);
       const players = room.players.map(player =>
         '<div class="network-player-line"><b>' + esc(player.name) + '</b><span>' +
         (player.friendCode ? esc(player.friendCode) + " · " : "") +
@@ -808,7 +808,7 @@
     const rows = races.map(room => {
       const race = room.race || {};
       return '<tr><td class="mono">' + esc(room.id) + '</td><td>' + esc(room.type) +
-        '</td><td>' + fmt(race.num) + '</td><td>' + fmt(race.course) +
+        '</td><td>' + fmt(race.num) + '</td><td>' + esc(courseDisplayName(race.trackName || race.courseName, race.course)) +
         '</td><td>' + (race.cc == null ? "—" : fmt(race.cc) + " CC") +
         '</td><td>' + fmt(room.playerSlots) + '</td></tr>';
     }).join("");
@@ -818,7 +818,7 @@
       networkStat("ONLINE PLAYER SLOTS", w.onlinePlayers) +
       networkStat("ACTIVE PLAYER SLOTS", w.activePlayers) +
       '</div>' + networkPanel("Current WiiLink race metadata", "Live race number, course and engine class from active MKWii groups",
-        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>TYPE</th><th>RACE #</th><th>COURSE ID</th><th>ENGINE CLASS</th><th>PLAYER SLOTS</th></tr></thead><tbody>' +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>TYPE</th><th>RACE #</th><th>COURSE</th><th>ENGINE CLASS</th><th>PLAYER SLOTS</th></tr></thead><tbody>' +
         (rows || '<tr><td colspan="6">No active room currently exposes race metadata. WiiLink does not provide a persistent race-results archive through these public endpoints.</td></tr>') +
         '</tbody></table></div>');
   }
