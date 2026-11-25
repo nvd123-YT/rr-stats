@@ -239,7 +239,7 @@
     const results = await Promise.allSettled([
       api("/timetrial/profile/" + encodeURIComponent(profileId)),
       api("/timetrial/profile/" + encodeURIComponent(profileId) + "/stats"),
-      api("/timetrial/profile/" + encodeURIComponent(profileId) + "/submissions?page=1&pageSize=25")
+      api("/timetrial/profile/" + encodeURIComponent(profileId) + "/submissions?page=1&pageSize=" + (state.detailedAnalytics ? 100 : 25))
     ]);
     const profile = results[0].status === "fulfilled" ? results[0].value : {};
     const stats = results[1].status === "fulfilled" ? results[1].value : {};
