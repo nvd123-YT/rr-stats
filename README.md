@@ -31,7 +31,9 @@ Other WFC revival and private servers can be added once a public, machine-readab
 ## Data sources
 
 - [Retro WFC](https://rwfc.net/) public API: room status, leaderboard, VR history, race results, player statistics, time-trial records and population peaks.
-- [Wiimmfi Mario Kart Wii online status](https://wiimmfi.de/stats/game/mariokartwii/text): machine-readable online-status records. The parser uses the documented `ol_status` bit field and `np` console-player count.
+- [Wiimmfi Mario Kart Wii statistics](https://wiimmfi.de/stats/mkw): official room statistics page.
+- [Wiimmfi legacy JSON feed](https://wiimmfi.de/stats/mkwx?m=json): room records with `type=room`, `region`, and `n_players`; this feed may be deprecated and is used as the first machine-readable source when it remains available.
+- [Wiimmfi online-status text](https://wiimmfi.de/stats/game/mariokartwii/text): fallback machine-readable status records. The parser uses the documented `ol_status` bit field and `np` console-player count. Automated access may be blocked by Cloudflare.
 - [WiiLink WFC online browser](https://wfc.wiilink.ca/online): official game browser and source link.
 
 The existing Retro WFC feeds include:
