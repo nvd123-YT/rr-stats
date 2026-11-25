@@ -117,9 +117,9 @@
       const region = record.region == null ? "Unknown" : String(record.region);
       const roomId = record.room_id != null ? record.room_id
         : record.room != null ? record.room
-        : record.id != null ? record.id : "Room " + (index + 1);
+        : record.id != null ? record.id : null;
       if (players !== null) byRegion.set(region, (byRegion.get(region) || 0) + players);
-      return { id: String(roomId), region, players: players === null ? 0 : players };
+      return { id: roomId == null ? "" : String(roomId), region, players: players === null ? 0 : players };
     });
 
     const totalPlayers = roomRows.reduce((sum, room) => sum + room.players, 0);
