@@ -171,33 +171,44 @@
 
     function parseWiimmfiJson(payload) {
     if (!Array.isArray(payload)) return null;
-    const rooms = payload.filter(record => record && String(record.type).toLowerCase() === "room");
+    const rooms = payload.filter(record => record && String(record.type || "").toLowerCase() === "room");
     if (!rooms.length && payload.length) return null;
-
+    const get = (record, keys) => {
+      for (const key of keys) if (record[key] !== undefined && record[key] !== null && record[key] !== "") return record[key];
+      return null;
+    };
     const byRegion = new Map();
-    const roomRows = rooms.map((record, index) => {
-      const players = number(record.n_players);
-      const region = record.region == null ? "Unknown" : String(record.region);
-      const roomId = record.room_id != null ? record.room_id
-        : record.room != null ? record.room
-        : record.id != null ? record.id : null;
-      if (players !== null) byRegion.set(region, (byRegion.get(region) || 0) + players);
-      return { id: roomId == null ? "" : String(roomId), region, players: players === null ? 0 : players };
+    const roomRows = rooms.map(record => {
+      const rawPlayers = get(record, ["n_players", "player_count", "players_count", "count", "players"]);
+      const roster = Array.isArray(rawPlayers) ? rawPlayers : Array.isArray(record.roster) ? record.roster : [];
+      const players = roster.length ? roster.length : number(rawPlayers);
+      const regionValue = get(record, ["region", "region_id", "rk"]);
+      const region = regionValue == null ? "" : String(regionValue);
+      const roomId = get(record, ["room_id", "rid", "room", "id"]);
+      const privateValue = get(record, ["private", "is_private", "private_room"]);
+      const privateRoom = privateValue == null ? null : typeof privateValue === "boolean" ? privateValue : /^(1|true|yes|private)$/i.test(String(privateValue));
+      const details = Object.entries(record).filter(([key, value]) =>
+        !["type","id","room","room_id","rid","region","region_id","rk","n_players","player_count","players_count","count","players","roster"].includes(key.toLowerCase()) &&
+        value != null && value !== ""
+      ).map(([key, value]) => ({ label: key.replace(/[_-]+/g, " "), value: typeof value === "object" ? JSON.stringify(value) : String(value) }));
+      if (players !== null) byRegion.set(region || "Unknown", (byRegion.get(region || "Unknown") || 0) + players);
+      return {
+        id: roomId == null ? "" : String(roomId), region, players, playerCount: players,
+        privateRoom, mode: get(record, ["mode", "room_type", "game_mode"]) || "",
+        onlineScope: get(record, ["scope", "online_scope"]) || "",
+        track: get(record, ["track_name", "course_name", "track", "track_id", "course"]) || "",
+        created: get(record, ["created_at", "created", "start"]) || null,
+        raceNumber: get(record, ["race_number", "nrace"]) || null,
+        host: get(record, ["host", "host_name"]) || "",
+        roster, details
+      };
     });
-
-    const totalPlayers = roomRows.reduce((sum, room) => sum + room.players, 0);
-    const regions = Array.from(byRegion.entries())
-      .map(([id, players]) => ({ id, players }))
-      .sort((a, b) => b.players - a.players);
-
+    const totalPlayers = roomRows.reduce((sum, room) => sum + (room.players == null ? 0 : room.players), 0);
+    const regions = Array.from(byRegion.entries()).map(([id, players]) => ({ id, players })).sort((a, b) => b.players - a.players);
     return {
-      onlinePlayers: totalPlayers,
-      rooms: roomRows.length,
-      players: [],
-      roomGroups: roomRows,
-      regions,
-      method: "Wiimmfi legacy mkwx JSON room records",
-      source: "legacy-json"
+      onlinePlayers: totalPlayers, rooms: roomRows.length,
+      players: roomRows.flatMap(room => room.roster || []), roomGroups: roomRows, regions,
+      method: "Wiimmfi legacy mkwx JSON room records", source: "legacy-json"
     };
   }
 
@@ -619,29 +630,56 @@
 
   function renderWiimmfiRoomsPage() {
     const w = networkState.wiimmfi;
-    const rooms = w.roomGroups || [];
+    const rooms = Array.isArray(w.roomGroups) ? w.roomGroups : [];
     const b = w.breakdown || {};
-    const rows = rooms.map(room => '<tr><td class="mono">' + esc(room.id || "—") +
-      '</td><td class="mono">' + esc(room.region || "—") +
-      '</td><td>' + esc(room.privateRoom == null ? "—" : room.privateRoom ? "Private" : "Public") +
-      '</td><td>' + esc(room.onlineScope || room.mode || "—") +
-      '</td><td>' + fmt(wiimmfiRoomCount(room)) + '</td></tr>').join("");
+    const cards = rooms.map((room, index) => {
+      const count = room.playerCount == null ? room.players : room.playerCount;
+      const facts = [
+        ["PLAYER SLOTS", count == null ? "—" : fmt(count)],
+        ["REGION CODE", room.region || null],
+        ["ACCESS", room.privateRoom == null ? null : room.privateRoom ? "Private" : "Public"],
+        ["MATCH TYPE", room.mode || null],
+        ["SCOPE", room.onlineScope || null],
+        ["TRACK / COURSE", room.track || null],
+        ["RACE #", room.raceNumber == null ? null : room.raceNumber],
+        ["CREATED", room.created == null ? null : room.created],
+        ["HOST", room.host || null]
+      ].filter(([, value]) => value !== null && value !== undefined && value !== "");
+      const factsHtml = facts.length
+        ? '<div class="wiimmfi-room-facts">' + facts.map(([label, value]) => '<div><span>' + esc(label) + '</span><b>' + esc(value) + '</b></div>').join("") + '</div>'
+        : '<p class="network-section-note">No descriptive fields were included for this room in the current response.</p>';
+      const roster = Array.isArray(room.roster) ? room.roster : [];
+      const rosterHtml = roster.length ? '<div class="wiimmfi-room-roster"><strong>ROSTER</strong>' +
+        roster.map(player => '<span>' + esc(player.name || player.nick || "Unknown player") + '</span>').join("") + '</div>' : "";
+      const extra = Array.isArray(room.details) && room.details.length
+        ? '<details class="wiimmfi-room-extra"><summary>Additional feed fields (' + room.details.length + ')</summary>' +
+          room.details.map(item => '<div><span>' + esc(item.label) + '</span><b>' + esc(item.value) + '</b></div>').join("") + '</details>' : "";
+      return '<article class="wiimmfi-room-card"><header><div><small>ROOM ' + (index + 1) + '</small><strong>' + esc(room.id || "ID unavailable") +
+        '</strong></div><b>' + (count == null ? "—" : fmt(count) + " PLAYERS") + '</b></header>' + factsHtml + rosterHtml + extra + '</article>';
+    }).join("");
+    const hasDetails = rooms.some(room => (room.roster && room.roster.length) || (room.details && room.details.length) ||
+      room.privateRoom != null || room.mode || room.onlineScope || room.track || room.created || room.raceNumber != null || room.host);
+    const explanation = !hasDetails
+      ? '<div class="network-important"><strong>Why you only see basic room information:</strong> the readable Wiimmfi JSON feed supplies room identifiers and a small amount of count/region metadata. It does not provide player names, room membership, track, host, room age or race history. Those fields are not being hidden by the dashboard; they are absent from this response.</div>'
+      : '<div class="network-important"><strong>Room detail coverage:</strong> cards display the fields Wiimmfi returned. Missing fields are not available in this snapshot.</div>';
     const body = '<div class="network-section-grid">' +
       networkStat("ONLINE PLAYER SLOTS", w.onlinePlayers) +
       networkStat("ACTIVE ROOMS", w.rooms) +
       networkStat("RACING", b.race) +
       networkStat("BATTLE", b.battle) +
-      '</div>' +
-      networkPanel("Current Wiimmfi rooms", "Room IDs, region and access details where the feed exposes them",
-        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM ID</th><th>REGION</th><th>ACCESS</th><th>PLAY MODE</th><th>PLAYER SLOTS</th></tr></thead><tbody>' +
-        (rows || '<tr><td colspan="5">The readable room-count feed does not expose individual room IDs.</td></tr>') +
-        '</tbody></table></div>') +
+      '</div>' + explanation +
+      networkPanel("Current Wiimmfi rooms", "Room-by-room information returned by the public feed",
+        cards ? '<div class="wiimmfi-room-grid">' + cards + '</div>' :
+          '<p class="network-section-note">The current snapshot returned no individual room records.</p>') +
       (w.players && w.players.length
-        ? networkPanel("Room rosters", "Player-level status text feed", renderWiimmfiPlayerRows(w.players))
-        : networkPanel("Room roster coverage", "Player-level text status feed",
-          '<p class="network-section-note">Wiimmfi room totals are available, but its player-status text feed did not load. This means room-level player names, exact per-player state and roster details are not currently available from this browser session.</p>' +
+        ? networkPanel("Player and room status", "Names, status, roles and room assignments", renderWiimmfiPlayerRows(w.players))
+        : networkPanel("Player and room roster coverage", "Separate Wiimmfi online-status text feed",
+          '<p class="network-section-note">The separate player-status feed is currently failing in this browser session. It is the source that can expose names, room assignments, public/private state, matchmaking scope and race/battle/search state. The JSON room-count feed does not contain that roster.</p>' +
           '<p style="margin-top:10px"><a class="network-external" href="' + esc(WIIMMFI_URL) + '" target="_blank" rel="noopener noreferrer">OPEN RAW PLAYER-STATUS FEED ↗</a></p>' +
-          (w.error ? '<p class="network-error" style="margin-top:10px">' + esc(w.error) + '</p>' : '')));
+          (w.error ? '<p class="network-error" style="margin-top:10px">' + esc(w.error) + '</p>' : ''))) +
+      networkPanel("Official Wiimmfi room statistics", "Open the canonical room page",
+        '<p class="network-section-note">Wiimmfi’s own room statistics page is the official place to inspect room links and available history. The dashboard will not invent room/player details missing from its machine-readable feed.</p>' +
+        '<p><a class="network-external" href="' + esc(WIIMMFI_PAGE) + '" target="_blank" rel="noopener noreferrer">OPEN OFFICIAL WIIMMFI ROOM PAGE ↗</a></p>');
     return body;
   }
 
