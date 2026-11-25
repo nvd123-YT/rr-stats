@@ -35,10 +35,10 @@
     const html = typeof basePlayerDetail === "function"
       ? basePlayerDetail(player, stats, analytics, history, results)
       : "";
-    const tracks = safeList(analytics && analytics.trackPerformance).slice(0, 8);
+    const tracks = analyticsItems(analytics && analytics.trackPerformance, 8);
     const positions = safeList(analytics && analytics.finishPositionDistribution);
     const trackRows = tracks.map(track =>
-      '<div class="rank-row"><span class="rank-name">' + esc(track.trackName) + '<div class="subnote">' + fmt(track.raceCount) + ' races · avg finish ' + (Number(track.avgFinishPos) || 0).toFixed(2) + '</div></span><span class="rank-value">' + (Number(track.winRate) || 0).toFixed(1) + '% wins</span></div>'
+      '<div class="rank-row"><span class="rank-name">' + esc(courseDisplayName(track.trackName, track.courseId != null ? track.courseId : track.trackId)) + '<div class="subnote">' + fmt(track.raceCount) + ' races · avg finish ' + (Number(track.avgFinishPos) || 0).toFixed(2) + '</div></span><span class="rank-value">' + (Number(track.winRate) || 0).toFixed(1) + '% wins</span></div>'
     ).join("");
     const positionRows = positions.map(item =>
       '<div class="rank-row"><span class="rank-name">Place #' + fmt(item.position) + '</span><span class="rank-value">' + fmt(item.count) + ' finishes</span></div>'
@@ -125,7 +125,7 @@
   }
 
   function ttRankingRows() {
-    const players = safeList(state.ttRankings).slice(0, 10);
+    const players = analyticsItems(state.ttRankings, 10);
     if (!players.length) return '<div class="empty-state">NO TIME-TRIAL PLAYER RANKINGS AVAILABLE</div>';
     return '<div class="rank-list">' + players.map(player =>
       '<div class="rank-row"><span class="rank-number">#' + fmt(player.rank) + '</span><span class="rank-name"><button class="player-link" data-action="tt-player" data-id="' + fmt(player.ttProfileId) + '">' + esc(player.displayName) + '</button></span><span class="rank-value">' + fmt(player.worldRecordCount) + ' WR</span></div>'
