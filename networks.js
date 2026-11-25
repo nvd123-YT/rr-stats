@@ -58,6 +58,11 @@
     const playersByPid = new Map();
     const roomGroups = new Map();
 
+    const roleName = value => ({
+      "0": "Offline", "1": "Online", "2": "Connecting",
+      "3": "Viewer", "4": "Guest", "5": "Host"
+    }[String(value)] || "Unknown");
+
     for (const block of blocks) {
       const fields = {};
       for (const line of block.split(/\r?\n/)) {
@@ -70,43 +75,101 @@
 
       const requestedSlots = Math.max(1, Math.min(2, number(fields.np) || 1));
       const names = [decodeBase64(fields.name1), decodeBase64(fields.name2)];
+      const roomId = fields.room || "";
+      const region = fields.region || "";
+      const changedAt = number(fields.time);
+      const statusAt = changedAt === null ? null : new Date(changedAt * 1000).toISOString();
+      const flags = {
+        online: !!(statusBits & 0x0001),
+        privateRoom: !!(statusBits & 0x0002),
+        global: !!(statusBits & 0x0004),
+        continental: !!(statusBits & 0x0008),
+        worldwide: !!(statusBits & 0x0010),
+        active: !!(statusBits & 0x0020),
+        race: !!(statusBits & 0x0040),
+        battle: !!(statusBits & 0x0080),
+        host: !!(statusBits & 0x0100),
+        guest: !!(statusBits & 0x0200),
+        viewer: !!(statusBits & 0x0400),
+        searching: !!(statusBits & 0x1000),
+        connecting: !!(statusBits & 0x2000)
+      };
+      const mode = flags.battle ? "Battle" : flags.race ? "Race"
+        : flags.searching ? "Searching" : flags.connecting ? "Connecting" : "Online";
+      const role = roleName(fields.ol_role);
       const onlinePlayers = [];
+
       for (let slot = 0; slot < requestedSlots; slot++) {
         const name = names[slot] || (slot === 1 && names[0] ? names[0] + " (2P)" : "Player " + pid);
-        onlinePlayers.push({
-          name,
-          pid,
-          room: fields.room || "",
-          region: fields.region || "",
-          slot: slot + 1,
-          statusBits,
-          mode: statusBits & 0x0080 ? "Battle" : statusBits & 0x0040 ? "Race" : statusBits & 0x1000 ? "Searching" : statusBits & 0x2000 ? "Connecting" : "Online"
-        });
+        onlinePlayers.push(Object.assign({
+          name, pid, room: roomId, region, slot: slot + 1,
+          consolePlayerCount: requestedSlots,
+          statusBits, mode, role, statusAt,
+          statusCode: fields.status == null ? null : fields.status,
+          onlineScope: flags.worldwide ? "Worldwide" : flags.continental ? "Continental" : flags.global ? "Global" : "—"
+        }, flags));
       }
       playersByPid.set(pid, onlinePlayers);
 
-      const roomId = fields.room || "";
       if (roomId && roomId !== "0") {
-        if (!roomGroups.has(roomId)) roomGroups.set(roomId, []);
-        roomGroups.get(roomId).push(...onlinePlayers);
+        if (!roomGroups.has(roomId)) {
+          roomGroups.set(roomId, {
+            id: roomId, region, privateRoom: flags.privateRoom,
+            onlineScope: onlinePlayers[0].onlineScope, modes: new Set(), roster: []
+          });
+        }
+        const room = roomGroups.get(roomId);
+        onlinePlayers.forEach(player => {
+          room.modes.add(player.mode);
+          room.roster.push(player);
+        });
       }
     }
 
     const players = Array.from(playersByPid.values()).flat();
-    const rooms = Array.from(roomGroups.entries()).map(([id, roomPlayers]) => ({ id, players: roomPlayers }));
+    const rooms = Array.from(roomGroups.values()).map(room => ({
+      id: room.id, region: room.region, privateRoom: room.privateRoom,
+      onlineScope: room.onlineScope, mode: Array.from(room.modes).join(" / "),
+      playerCount: room.roster.length, roster: room.roster
+    }));
     const hasStatusFeed = blocks.length > 0;
     const explicitEmpty = /no\s+(?:players|racers|users)\s+online|nobody\s+online/i.test(text);
+    const breakdown = {
+      race: 0, battle: 0, searching: 0, connecting: 0, online: 0,
+      active: 0, private: 0, public: 0, worldwide: 0, continental: 0,
+      global: 0, hosts: 0, guests: 0, viewers: 0, consoles: playersByPid.size
+    };
+    const byRegion = new Map();
+    for (const player of players) {
+      breakdown.race += player.race ? 1 : 0;
+      breakdown.battle += player.battle ? 1 : 0;
+      breakdown.searching += player.searching ? 1 : 0;
+      breakdown.connecting += player.connecting ? 1 : 0;
+      breakdown.online += player.online ? 1 : 0;
+      breakdown.active += player.active ? 1 : 0;
+      breakdown.private += player.privateRoom ? 1 : 0;
+      breakdown.public += player.privateRoom ? 0 : 1;
+      breakdown.worldwide += player.worldwide ? 1 : 0;
+      breakdown.continental += player.continental ? 1 : 0;
+      breakdown.global += player.global ? 1 : 0;
+      breakdown.hosts += player.host ? 1 : 0;
+      breakdown.guests += player.guest ? 1 : 0;
+      breakdown.viewers += player.viewer ? 1 : 0;
+      if (player.region) byRegion.set(player.region, (byRegion.get(player.region) || 0) + 1);
+    }
+    const regions = Array.from(byRegion.entries())
+      .map(([id, playerCount]) => ({ id, players: playerCount }))
+      .sort((a, b) => b.players - a.players);
 
     return {
       onlinePlayers: hasStatusFeed || explicitEmpty ? players.length : null,
       rooms: hasStatusFeed ? rooms.length : explicitEmpty ? 0 : null,
-      players,
-      roomGroups: rooms,
+      players, roomGroups: rooms, regions, breakdown,
       method: "Mario Kart Wii online-status records"
     };
   }
 
-  function parseWiimmfiJson(payload) {
+    function parseWiimmfiJson(payload) {
     if (!Array.isArray(payload)) return null;
     const rooms = payload.filter(record => record && String(record.type).toLowerCase() === "room");
     if (!rooms.length && payload.length) return null;
@@ -139,79 +202,80 @@
   }
 
   async function refreshWiimmfi() {
-    let jsonError = null;
-    try {
-      const raw = await fetchText(WIIMMFI_JSON_URL, 12000);
-      const parsed = parseWiimmfiJson(JSON.parse(raw));
-      if (parsed) {
-        networkState.wiimmfi = {
-          name: "Wiimmfi",
-          onlinePlayers: parsed.onlinePlayers,
-          rooms: parsed.rooms,
-          players: parsed.players,
-          roomGroups: parsed.roomGroups,
-          regions: parsed.regions,
-          status: "live",
-          detail: "Live Mario Kart Wii room totals from Wiimmfi's legacy JSON feed (may be deprecated)",
-          source: parsed.source,
-          updatedAt: new Date().toISOString()
-        };
-        return;
+    const [jsonResult, textResult] = await Promise.allSettled([
+      fetchText(WIIMMFI_JSON_URL, 12000),
+      fetchText(WIIMMFI_URL, 12000)
+    ]);
+    let jsonParsed = null;
+    let textParsed = null;
+    let jsonError = jsonResult.status === "rejected"
+      ? String(jsonResult.reason && jsonResult.reason.message || jsonResult.reason) : null;
+    let textError = textResult.status === "rejected"
+      ? String(textResult.reason && textResult.reason.message || textResult.reason) : null;
+
+    if (jsonResult.status === "fulfilled") {
+      try {
+        jsonParsed = parseWiimmfiJson(JSON.parse(jsonResult.value));
+        if (!jsonParsed) jsonError = "JSON response did not match the documented room schema";
+      } catch (error) {
+        jsonError = "JSON parse failed: " + String(error && error.message || error);
       }
-      jsonError = "The JSON endpoint returned an unrecognized structure";
-    } catch (error) {
-      jsonError = String(error && error.message || error);
+    }
+    if (textResult.status === "fulfilled") {
+      textParsed = parseWiimmfiText(textResult.value);
+      if (textParsed.onlinePlayers === null) {
+        textError = "Text response contained no readable online-status records";
+      }
     }
 
-    // Fallback: newer text statistics endpoint. Some automated/browser clients receive
-    // Cloudflare protection here, so failure must stay visible rather than becoming zero.
-    try {
-      const text = await fetchText(WIIMMFI_URL, 12000);
-      const parsed = parseWiimmfiText(text);
-      if (parsed.onlinePlayers !== null) {
-        networkState.wiimmfi = {
-          name: "Wiimmfi",
-          onlinePlayers: parsed.onlinePlayers,
-          rooms: parsed.rooms,
-          players: parsed.players,
-          roomGroups: parsed.roomGroups,
-          regions: [],
-          status: "live",
-          detail: "Live count decoded from the Wiimmfi Mario Kart Wii status text feed",
-          source: "status-text",
-          updatedAt: new Date().toISOString()
-        };
-        return;
-      }
+    if (jsonParsed || (textParsed && textParsed.onlinePlayers !== null)) {
+      const hasJson = !!jsonParsed;
+      const hasText = !!(textParsed && textParsed.onlinePlayers !== null);
+      const details = [];
+      if (hasJson) details.push("room-count feed readable");
+      if (hasText) details.push("player/status feed readable");
+      if (!hasJson && jsonError) details.push("JSON feed: " + jsonError);
+      if (!hasText && textError) details.push("text feed: " + textError);
       networkState.wiimmfi = {
-        name: "Wiimmfi", onlinePlayers: null, rooms: null, players: [], roomGroups: [], regions: [],
-        status: "partial",
-        detail: "JSON and text feeds responded but neither exposed a verifiable MKWii count",
-        error: jsonError,
+        name: "Wiimmfi",
+        onlinePlayers: hasJson ? jsonParsed.onlinePlayers : textParsed.onlinePlayers,
+        rooms: hasJson ? jsonParsed.rooms : textParsed.rooms,
+        players: hasText ? textParsed.players : [],
+        roomGroups: hasText && textParsed.roomGroups.length ? textParsed.roomGroups : (jsonParsed ? jsonParsed.roomGroups : []),
+        regions: hasText && textParsed.regions.length ? textParsed.regions : (jsonParsed ? jsonParsed.regions : []),
+        breakdown: hasText ? textParsed.breakdown : null,
+        status: "live",
+        detail: details.join(" · "),
+        source: [hasJson ? "legacy-json" : null, hasText ? "status-text" : null].filter(Boolean).join("+"),
+        error: details.filter(part => part.includes("feed:")).join(" · "),
         updatedAt: new Date().toISOString()
       };
-    } catch (error) {
-      networkState.wiimmfi = {
-        name: "Wiimmfi", onlinePlayers: null, rooms: null, players: [], roomGroups: [], regions: [],
-        status: "unavailable",
-        detail: "Browser could not read Wiimmfi feeds (CORS, Cloudflare, network restriction, or retired legacy endpoint)",
-        error: String(error && error.message || error) + " · JSON: " + jsonError,
-        updatedAt: new Date().toISOString()
-      };
+      return;
     }
+
+    networkState.wiimmfi = {
+      name: "Wiimmfi", onlinePlayers: null, rooms: null, players: [],
+      roomGroups: [], regions: [], breakdown: null,
+      status: "unavailable",
+      detail: "Neither public Wiimmfi feed returned a verified Mario Kart Wii snapshot",
+      error: "JSON: " + (jsonError || "no valid data") + " · Text: " + (textError || "no valid data"),
+      updatedAt: new Date().toISOString()
+    };
   }
 
-  function parseWiiLinkSnapshot(statsPayload, groupPayload) {
-    if (!statsPayload || typeof statsPayload !== "object" || !Array.isArray(groupPayload)) return null;
+    function parseWiiLinkSnapshot(statsPayload, groupPayload) {
+    if (!statsPayload || typeof statsPayload !== "object" || Array.isArray(statsPayload) || !Array.isArray(groupPayload)) return null;
 
-    const gameStats = statsPayload.mariokartwii || {};
-    const validStats = statsPayload.global && typeof statsPayload.global === "object";
-    if (!validStats) return null;
+    const gameKey = Object.keys(statsPayload).find(key => key.toLowerCase() === "mariokartwii");
+    const gameStats = gameKey ? statsPayload[gameKey] : {};
+    const globalStats = statsPayload.global;
+    if (!gameStats || typeof gameStats !== "object" || !globalStats || typeof globalStats !== "object") return null;
 
     const rooms = groupPayload
       .filter(group => group && (!group.game || String(group.game).toLowerCase() === "mariokartwii"))
       .map((group, index) => {
-        const playerMap = group.players && typeof group.players === "object" ? group.players : {};
+        const playerMap = group.players && typeof group.players === "object" && !Array.isArray(group.players)
+          ? group.players : {};
         const players = Object.values(playerMap).map(player => ({
           name: player.name || "Unknown player",
           pid: player.pid || "",
@@ -219,12 +283,16 @@
           versusElo: number(player.ev),
           battleElo: number(player.eb),
           consolePlayers: Math.max(1, number(player.count) || 1),
-          suspended: String(player.suspend || "0") !== "0"
+          suspended: String(player.suspend || "0") !== "0",
+          connectionMap: String(player.conn_map || ""),
+          connectionFailures: number(player.conn_fail) || 0,
+          miis: Array.isArray(player.mii) ? player.mii : []
         }));
         return {
           id: String(group.id || "Room " + (index + 1)),
           type: group.type || "unknown",
           region: group.rk || "",
+          host: group.host == null ? "" : String(group.host),
           created: group.created || null,
           suspended: !!group.suspend,
           race: group.race || null,
@@ -235,59 +303,102 @@
 
     const roomPlayerSlots = rooms.reduce((sum, room) => sum + room.playerSlots, 0);
     const roomConsoleSessions = rooms.reduce((sum, room) => sum + room.players.length, 0);
-    // /api/stats counts GameSpy sessions (consoles); room player records also expose
-    // local-player slots, so add only the extra split-screen slots to the session total.
+    // /api/stats counts GameSpy sessions (consoles). Room player records also expose
+    // local-player slots, so only split-screen extras are added to the console count.
     const extraLocalSlots = Math.max(0, roomPlayerSlots - roomConsoleSessions);
     const onlineSessions = number(gameStats.online);
-    const onlinePlayers = (onlineSessions === null ? roomConsoleSessions : onlineSessions) + extraLocalSlots;
     const activeSessions = number(gameStats.active);
-    const activePlayers = (activeSessions === null ? roomConsoleSessions : activeSessions) + extraLocalSlots;
-    const roomCount = number(gameStats.groups) !== null
-      ? Number(gameStats.groups)
-      : rooms.length;
+    const onlinePlayers = (onlineSessions === null ? 0 : onlineSessions) + extraLocalSlots;
+    const activePlayers = (activeSessions === null ? 0 : activeSessions) + extraLocalSlots;
+    const roomCount = number(gameStats.groups) !== null ? Number(gameStats.groups) : rooms.length;
 
     return {
-      onlinePlayers,
-      onlineSessions,
-      activePlayers,
-      rooms: roomCount,
-      roomGroups: rooms,
+      onlinePlayers, onlineSessions,
+      activePlayers, activeSessions,
+      rooms: roomCount, roomGroups: rooms,
       status: "live",
-      detail: "Live Mario Kart Wii totals and room/player details from WiiLink WFC's public API",
+      detail: "Live Mario Kart Wii stats and room details from WiiLink's public API",
       updatedAt: new Date().toISOString()
     };
   }
 
-  async function refreshWiiLink() {
+    async function fetchWiiLinkJson(endpoint) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
     try {
-      const [statsText, groupsText] = await Promise.all([
-        fetchText(WIILINK_API + "/stats?game=mariokartwii", 12000),
-        fetchText(WIILINK_API + "/groups?game=mariokartwii", 12000)
-      ]);
-      const parsed = parseWiiLinkSnapshot(JSON.parse(statsText), JSON.parse(groupsText));
-      if (!parsed) throw new Error("WiiLink API returned an unrecognized response");
-      networkState.wiilink = Object.assign({
-        name: "WiiLink WFC",
-        regions: [],
-        error: null
-      }, parsed);
-    } catch (error) {
-      networkState.wiilink = {
-        name: "WiiLink WFC",
-        onlinePlayers: null,
-        activePlayers: null,
-        rooms: null,
-        roomGroups: [],
-        regions: [],
-        status: "unavailable",
-        detail: "Could not read WiiLink's public Mario Kart Wii stats/groups API",
-        updatedAt: new Date().toISOString(),
-        error: String(error && error.message || error)
-      };
+      const response = await fetch(WIILINK_API + endpoint, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        cache: "no-store",
+        redirect: "follow",
+        headers: { "Accept": "application/json" },
+        signal: controller.signal
+      });
+      const body = await response.text();
+      if (!response.ok) throw new Error(endpoint + " returned HTTP " + response.status + (body ? ": " + body.slice(0, 180) : ""));
+      try {
+        return JSON.parse(body);
+      } catch (error) {
+        throw new Error(endpoint + " returned invalid JSON: " + String(error && error.message || error) + (body ? " · " + body.slice(0, 120) : ""));
+      }
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
-  function retroSnapshot() {
+  async function refreshWiiLink() {
+    const statsPath = "/stats?game=mariokartwii";
+    const groupsPath = "/groups?game=mariokartwii";
+    const [statsResult, groupsResult] = await Promise.allSettled([
+      fetchWiiLinkJson(statsPath),
+      fetchWiiLinkJson(groupsPath)
+    ]);
+
+    if (statsResult.status === "rejected") {
+      const statsError = String(statsResult.reason && statsResult.reason.message || statsResult.reason);
+      const groupsError = groupsResult.status === "rejected"
+        ? String(groupsResult.reason && groupsResult.reason.message || groupsResult.reason) : null;
+      networkState.wiilink = {
+        name: "WiiLink WFC", onlinePlayers: null, activePlayers: null,
+        onlineSessions: null, activeSessions: null, rooms: null,
+        roomGroups: [], regions: [], status: "unavailable",
+        detail: "The WiiLink stats endpoint could not be read",
+        error: statsError + (groupsError ? " · " + groupsPath + ": " + groupsError : ""),
+        updatedAt: new Date().toISOString()
+      };
+      return;
+    }
+
+    const groupsPayload = groupsResult.status === "fulfilled" ? groupsResult.value : [];
+    const parsed = parseWiiLinkSnapshot(statsResult.value, groupsPayload);
+    if (!parsed) {
+      networkState.wiilink = {
+        name: "WiiLink WFC", onlinePlayers: null, activePlayers: null,
+        onlineSessions: null, activeSessions: null, rooms: null,
+        roomGroups: [], regions: [], status: "unavailable",
+        detail: "WiiLink stats endpoint responded, but its JSON shape was not recognized",
+        error: "Stats payload keys: " + Object.keys(statsResult.value || {}).join(", "),
+        updatedAt: new Date().toISOString()
+      };
+      return;
+    }
+
+    const groupError = groupsResult.status === "rejected"
+      ? String(groupsResult.reason && groupsResult.reason.message || groupsResult.reason) : null;
+    networkState.wiilink = Object.assign({
+      name: "WiiLink WFC",
+      regions: [],
+      error: groupError,
+      detail: groupError
+        ? "Population stats are live; room/player detail endpoint failed"
+        : "Live Mario Kart Wii population, rooms, player ELO and connection telemetry"
+    }, parsed, {
+      status: groupError ? "partial" : "live"
+    });
+  }
+
+    function retroSnapshot() {
     const s = appState();
     const status = s.roomStatus || {};
     const stats = s.roomStats || {};
@@ -356,15 +467,19 @@
         capability("Combo analytics", "yes", true);
       substats = '<div class="network-substats"><div><b>' + fmt(provider.races) + '</b><span>RECORDED RACES</span></div><div><b>' + fmt(provider.trackedPlayers) + '</b><span>TRACKED PLAYERS</span></div><div><b>' + fmt(provider.peakAllTime) + '</b><span>ALL-TIME ROOM PEAK</span></div><div><b>' + fmt(provider.peakToday) + '</b><span>TODAY\'S ROOM PEAK</span></div></div>';
     } else if (provider.key === "wiimmfi") {
+      const telemetry = provider.breakdown || {};
       features = capability("Live MKWii status", provider.onlinePlayers === null ? "not readable" : "yes", provider.onlinePlayers !== null) +
-        capability("Active rooms", provider.rooms === null ? "not readable" : "yes", provider.rooms !== null) +
-        capability("Regional counts", Array.isArray(provider.regions) && provider.regions.length ? "yes" : "not exposed", Array.isArray(provider.regions) && provider.regions.length > 0) +
-        capability("VR / race archive", "not in public status feed", false);
+        capability("Race / battle state", provider.breakdown ? "yes" : "not in feed", !!provider.breakdown) +
+        capability("Public / private rooms", provider.breakdown ? "yes" : "not in feed", !!provider.breakdown) +
+        capability("Historical race archive", "not in public status feed", false);
+      if (provider.breakdown) {
+        substats = '<div class="network-substats"><div><b>' + fmt(telemetry.race) + '</b><span>RACING SLOTS</span></div><div><b>' + fmt(telemetry.battle) + '</b><span>IN BATTLES</span></div><div><b>' + fmt(telemetry.searching) + '</b><span>SEARCHING</span></div><div><b>' + fmt(telemetry.private) + '</b><span>PRIVATE-ROOM SLOTS</span></div></div>';
+      }
     } else {
       features = capability("Live rooms / players", provider.onlinePlayers === null ? "unavailable" : "yes", provider.onlinePlayers !== null) +
         capability("Friend codes", "yes", true) +
         capability("VS / Battle ELO", "yes", true) +
-        capability("Historical race archive", "not exposed", false);
+        capability("Connection quality", provider.roomGroups && provider.roomGroups.length ? "yes" : "not in active rooms", !!(provider.roomGroups && provider.roomGroups.length));
       substats = '<div class="network-substats"><div><b>' + fmt(provider.activePlayers) + '</b><span>ACTIVE PLAYER SLOTS</span></div><div><b>' + fmt(provider.onlineSessions) + '</b><span>ONLINE CONSOLES</span></div></div>';
     }
     return '<article class="network-card">' +
@@ -372,6 +487,7 @@
       '<div class="network-numbers"><div><span>MKWII PLAYERS ONLINE</span><b>' + fmt(provider.onlinePlayers) + '</b></div><div><span>ACTIVE ROOMS</span><b>' + fmt(provider.rooms) + '</b></div></div>' +
       substats +
       '<p class="network-detail">' + esc(provider.detail || "") + '</p>' +
+      (provider.error ? '<p class="network-detail network-error">FEED DIAGNOSTIC · ' + esc(provider.error) + '</p>' : '') +
       '<p class="network-checked">LAST SOURCE UPDATE · ' + esc(localTime(provider.updatedAt)) + '</p>' +
       '<div class="network-capabilities">' + features + '</div>' +
       '<a class="network-external" href="' + esc(provider.url) + '" target="_blank" rel="noopener noreferrer">OPEN OFFICIAL SOURCE ↗</a>' +
@@ -384,9 +500,41 @@
     const wiimmfiRegions = (wiimmfi.regions || []).slice(0, 30).map(region =>
       '<tr><td class="mono">' + esc(region.id) + '</td><td class="mono lime">' + fmt(region.players) + '</td></tr>'
     ).join("");
-    const wiimmfiRooms = (wiimmfi.roomGroups || []).slice(0, 60).map(room =>
-      '<tr><td class="mono">' + esc(room.id) + '</td><td class="mono">' + esc(room.region) + '</td><td>' + fmt(room.players) + '</td></tr>'
+    const wiimmfiRooms = (wiimmfi.roomGroups || []).slice(0, 60).map(room => {
+      const count = number(room.playerCount) !== null ? room.playerCount
+        : Array.isArray(room.roster) ? room.roster.length
+        : number(room.players);
+      return '<tr><td class="mono">' + esc(room.id || "—") + '</td><td class="mono">' + esc(room.region || "—") + '</td><td>' +
+        esc(room.privateRoom == null ? "—" : room.privateRoom ? "Private" : "Public") + '</td><td>' +
+        esc(room.onlineScope || room.mode || "—") + '</td><td>' + fmt(count) + '</td></tr>';
+    }).join("");
+    const wiimmfiPlayers = (wiimmfi.players || []).slice(0, 100).map(player =>
+      '<tr><td><b>' + esc(player.name) + '</b></td><td>' + esc(player.mode) + '</td><td>' +
+      esc(player.role || "—") + '</td><td class="mono">' + esc(player.room || "—") + '</td><td class="mono">' +
+      esc(player.region || "—") + '</td><td>' + esc(player.privateRoom ? "Private" : "Public") + ' · ' +
+      esc(player.onlineScope || "—") + '</td></tr>'
     ).join("");
+    const wiimmfiTelemetry = wiimmfi.breakdown
+      ? '<div class="network-substats">' +
+        '<div><b>' + fmt(wiimmfi.breakdown.active) + '</b><span>ACTIVE SLOTS</span></div>' +
+        '<div><b>' + fmt(wiimmfi.breakdown.worldwide) + '</b><span>WORLDWIDE</span></div>' +
+        '<div><b>' + fmt(wiimmfi.breakdown.continental) + '</b><span>CONTINENTAL</span></div>' +
+        '<div><b>' + fmt(wiimmfi.breakdown.hosts) + '</b><span>HOST SLOTS</span></div>' +
+        '</div>' : '';
+    const wiimmfiSection = (wiimmfi.regions || []).length || (wiimmfi.roomGroups || []).length || (wiimmfi.players || []).length
+      ? '<section><div class="panel-title"><strong>Wiimmfi</strong><small>Live status, room classification and player states</small></div>' +
+        wiimmfiTelemetry +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>REGION</th><th>PLAYER SLOTS</th></tr></thead><tbody>' +
+        (wiimmfiRegions || '<tr><td colspan="2">Regional breakdown not exposed</td></tr>') +
+        '</tbody></table></div>' +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>REGION</th><th>ACCESS</th><th>SCOPE / MODE</th><th>PLAYERS</th></tr></thead><tbody>' +
+        (wiimmfiRooms || '<tr><td colspan="5">No room rows in the readable feed</td></tr>') +
+        '</tbody></table></div>' +
+        '<div class="table-wrap"><table class="data-table"><thead><tr><th>PLAYER</th><th>STATE</th><th>ROLE</th><th>ROOM</th><th>REGION</th><th>ROOM TYPE / SCOPE</th></tr></thead><tbody>' +
+        (wiimmfiPlayers || '<tr><td colspan="6">Player-level status text feed unavailable; counts may still come from the room JSON feed</td></tr>') +
+        '</tbody></table></div></section>'
+      : '<section><div class="panel-title"><strong>Wiimmfi</strong><small>Live activity detail</small></div><div class="empty-state">Room and player details unavailable from the current Wiimmfi feeds.</div></section>';
+
     const wiilinkRooms = (wiilink.roomGroups || []).slice(0, 60).map(room => {
       const race = room.race || {};
       const course = race.course == null ? "—" : "Course " + race.course;
@@ -395,29 +543,22 @@
         (player.friendCode ? esc(player.friendCode) + " · " : "") +
         'VS ' + fmt(player.versusElo) + ' / BT ' + fmt(player.battleElo) +
         (player.consolePlayers > 1 ? " · " + player.consolePlayers + "P" : "") +
+        (player.connectionFailures ? " · " + player.connectionFailures + " failed links" : "") +
         '</span></div>'
       ).join("");
       return '<tr><td class="mono">' + esc(room.id) + '</td><td>' + esc(room.type) +
         (room.suspended ? ' · SUSPENDED' : '') + '</td><td>' + esc(course) +
+        (race.num == null ? "" : " · Race " + esc(race.num)) +
         (race.cc == null ? "" : " · " + esc(race.cc) + " CC") + '</td><td>' +
         fmt(room.playerSlots) + '<div class="network-room-players">' + players + '</div></td></tr>';
     }).join("");
 
-    const wiimmfiSection = (wiimmfi.regions || []).length || (wiimmfi.roomGroups || []).length
-      ? '<section><div class="panel-title"><strong>Wiimmfi</strong><small>Legacy JSON regions and live room records</small></div>' +
-        '<div class="table-wrap"><table class="data-table"><thead><tr><th>REGION ID</th><th>PLAYERS</th></tr></thead><tbody>' +
-        (wiimmfiRegions || '<tr><td colspan="2">Regional breakdown not exposed</td></tr>') +
-        '</tbody></table></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>REGION</th><th>PLAYERS</th></tr></thead><tbody>' +
-        (wiimmfiRooms || '<tr><td colspan="3">No room rows</td></tr>') +
-        '</tbody></table></div></section>'
-      : '<section><div class="panel-title"><strong>Wiimmfi</strong><small>Live activity detail</small></div><div class="empty-state">Room details unavailable from the current Wiimmfi feed.</div></section>';
-
-    const wiilinkSection = wiilink.status === "live"
-      ? '<section><div class="panel-title"><strong>WiiLink WFC</strong><small>Live rooms, player ELO and current race metadata</small></div>' +
+    const wiilinkSection = wiilink.status === "live" || wiilink.status === "partial"
+      ? '<section><div class="panel-title"><strong>WiiLink WFC</strong><small>Live rooms, player ELO and connection telemetry</small></div>' +
         '<div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>TYPE</th><th>RACE / COURSE</th><th>PLAYERS · VS / BATTLE ELO</th></tr></thead><tbody>' +
         (wiilinkRooms || '<tr><td colspan="4">No active room records</td></tr>') +
         '</tbody></table></div></section>'
-      : '<section><div class="panel-title"><strong>WiiLink WFC</strong><small>Live activity detail</small></div><div class="empty-state">WiiLink live room details are currently unavailable.</div></section>';
+      : '<section><div class="panel-title"><strong>WiiLink WFC</strong><small>Live activity detail</small></div><div class="empty-state">WiiLink live room details are currently unavailable. ' + esc(wiilink.error || "") + '</div></section>';
 
     return '<div class="network-live-grid">' + wiimmfiSection + wiilinkSection + '</div>';
   }
