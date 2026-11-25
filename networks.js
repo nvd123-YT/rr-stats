@@ -441,7 +441,7 @@
 
   function combined(field) {
     const values = providers()
-      .filter(provider => provider.status === "live")
+      .filter(provider => (provider.status === "live" || provider.status === "partial") && number(provider[field]) !== null)
       .map(provider => number(provider[field]))
       .filter(value => value !== null);
     return values.length ? values.reduce((sum, value) => sum + value, 0) : null;
