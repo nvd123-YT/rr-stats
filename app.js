@@ -21,6 +21,7 @@ const state = {
   selectedPlayer: null,
   selectedRace: null,
   favorites: loadFavorites(),
+  detailedAnalytics: (() => { try { return localStorage.getItem("rrstats-detailed-analytics") === "true"; } catch (_) { return false; } })(),
   lastUpdated: null,
   errors: [],
   loading: false
@@ -32,6 +33,53 @@ const esc = value => String(value == null ? "" : value).replace(/[&<>"']/g, char
 const fmt = value => Number.isFinite(Number(value)) ? Number(value).toLocaleString() : "—";
 const signed = value => value == null || !Number.isFinite(Number(value)) ? "—" : (Number(value) > 0 ? "+" : "") + Number(value).toLocaleString();
 const safeList = value => Array.isArray(value) ? value : [];
+
+const MKW_TRACK_NAMES = Object.freeze({
+  0:"Mario Circuit",1:"Moo Moo Meadows",2:"Mushroom Gorge",3:"Grumble Volcano",
+  4:"Toad's Factory",5:"Coconut Mall",6:"DK Summit",7:"Wario's Gold Mine",
+  8:"Luigi Circuit",9:"Daisy Circuit",10:"Moonview Highway",11:"Maple Treeway",
+  12:"Bowser's Castle",13:"Rainbow Road",14:"Dry Dry Ruins",15:"Koopa Cape",
+  16:"GCN Peach Beach",17:"GCN Mario Circuit",18:"GCN Waluigi Stadium",19:"GCN DK Mountain",
+  20:"DS Yoshi Falls",21:"DS Desert Hills",22:"DS Peach Gardens",23:"DS Delfino Square",
+  24:"SNES Mario Circuit 3",25:"SNES Ghost Valley 2",26:"N64 Mario Raceway",27:"N64 Sherbet Land",
+  28:"N64 Bowser's Castle",29:"N64 DK's Jungle Parkway",30:"GBA Bowser Castle 3",31:"GBA Shy Guy Beach",
+  32:"Delfino Pier",33:"Block Plaza",34:"Chain Chomp Roulette",35:"Funky Stadium",
+  36:"Thwomp Desert",37:"GCN Cookie Land",38:"DS Twilight House",39:"SNES Battle Course 4",
+  40:"GBA Battle Course 3",41:"N64 Skyscraper",54:"Galaxy Colosseum",
+  55:"Winning Scene",56:"Losing Scene",57:"Luigi Circuit (Credits)",58:"Broken Losing Scene",
+  67:"No Track Selected",255:"Random Track"
+});
+function courseDisplayName(trackName, courseId) {
+  const label = trackName == null ? "" : String(trackName).trim();
+  const labelMatch = label.match(/^(?:course|track)\s*#?\s*(0x[0-9a-f]+|[0-9]+)$/i);
+  const idValue = labelMatch ? labelMatch[1] : (label && /^[0-9]+$/.test(label) ? label : courseId);
+  if (idValue !== null && idValue !== undefined && idValue !== "") {
+    const idText = String(idValue).trim();
+    const id = /^0x[0-9a-f]+$/i.test(idText) ? parseInt(idText, 16) : Number(idText);
+    if (Number.isInteger(id) && id >= 0) {
+      if (Object.prototype.hasOwnProperty.call(MKW_TRACK_NAMES, id)) return MKW_TRACK_NAMES[id];
+      if ((id >= 68 && id <= 254) || id >= 256) return "Custom Track · ID " + id;
+      return "Track ID " + id;
+    }
+  }
+  return label || "—";
+}
+function analyticsItems(items, defaultLimit) {
+  const list = safeList(items);
+  return state.detailedAnalytics ? list : list.slice(0, defaultLimit);
+}
+function updateAnalyticsModeButton() {
+  const button = $("#detailModeToggle");
+  if (!button) return;
+  const enabled = !!state.detailedAnalytics;
+  button.textContent = enabled ? "ANALYTICS: ALL" : "ANALYTICS: TOP";
+  button.setAttribute("aria-pressed", enabled ? "true" : "false");
+  button.classList.toggle("enabled", enabled);
+  button.title = enabled
+    ? "Showing all analytics records returned by each source. Click to return to compact rankings."
+    : "Showing compact rankings. Click to show every analytics record returned by each source.";
+}
+
 const getItems = value => Array.isArray(value) ? value : safeList(value && value.items);
 const shortDate = value => {
   if (!value) return "—";
@@ -135,7 +183,7 @@ function barChart(items, labelKey, valueKey) {
   }).join("") + '</div>';
 }
 function rankList(items, nameKey, valueKey, suffix) {
-  items = safeList(items).slice(0, 7);
+  items = analyticsItems(items, 7);
   if (!items.length) return '<div class="empty-state">NO AGGREGATES AVAILABLE</div>';
   return '<div class="rank-list">' + items.map((item, index) =>
     '<div class="rank-row"><span class="rank-number">' + String(index + 1).padStart(2, "0") + '</span><span class="rank-name">' + esc(item[nameKey]) + '</span><span class="rank-value">' + fmt(item[valueKey]) + (suffix || "") + '</span></div>'
@@ -144,7 +192,7 @@ function rankList(items, nameKey, valueKey, suffix) {
 function roomCard(room, index) {
   const players = roomPlayers(room);
   const race = room.race || {};
-  const track = race.trackName || race.courseName || (race.course != null ? "Course " + race.course : "Waiting for race");
+  const track = race.trackName || race.courseName ? courseDisplayName(race.trackName || race.courseName, race.courseId != null ? race.courseId : race.course) : (race.course != null || race.courseId != null ? courseDisplayName(null, race.courseId != null ? race.courseId : race.course) : "Waiting for race");
   const id = room.id || room.roomId || "ROOM";
   const tags = [];
   if (room.isPublic === false) tags.push('<span class="tag private">PRIVATE</span>');
@@ -161,7 +209,7 @@ function roomCard(room, index) {
 }
 function raceRow(race, index) {
   const participants = safeList(race.participants);
-  return '<tr><td class="mono muted">' + dateTime(race.timestamp) + '</td><td><button class="race-link" data-action="open-race" data-index="' + index + '">' + esc(race.trackName || ("Course " + race.courseId)) + '</button></td><td class="mono">' + esc(race.roomId || "—") + ' <span class="muted">#' + fmt(race.raceNumber) + '</span></td><td class="mono">' + fmt(race.engineClassId) + ' CC</td><td>' + participants.length + '</td><td class="muted">' + esc(race.gameMode || "—") + '</td></tr>';
+  return '<tr><td class="mono muted">' + dateTime(race.timestamp) + '</td><td><button class="race-link" data-action="open-race" data-index="' + index + '">' + esc(courseDisplayName(race.trackName, race.courseId)) + '</button></td><td class="mono">' + esc(race.roomId || "—") + ' <span class="muted">#' + fmt(race.raceNumber) + '</span></td><td class="mono">' + fmt(race.engineClassId) + ' CC</td><td>' + participants.length + '</td><td class="muted">' + esc(race.gameMode || "—") + '</td></tr>';
 }
 function raceTable(items, emptyMessage) {
   if (!items.length) return '<div class="empty-state">' + esc(emptyMessage || "NO RACE RESULTS FOUND") + '</div>';
@@ -191,7 +239,7 @@ function renderRooms() {
 }
 function renderRaces() {
   const f = state.raceFilters;
-  const trackOptions = safeList(state.globalStats && state.globalStats.allPlayedTracks).slice(0, 100).map(track => '<option value="' + esc(track.courseId) + '"' + (String(f.courseId || "") === String(track.courseId) ? " selected" : "") + '>' + esc(track.trackName) + '</option>').join("");
+  const trackOptions = analyticsItems(state.globalStats && state.globalStats.allPlayedTracks, 100).map(track => '<option value="' + esc(track.courseId) + '"' + (String(f.courseId || "") === String(track.courseId) ? " selected" : "") + '>' + esc(courseDisplayName(track.trackName, track.courseId)) + '</option>').join("");
   return '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Race archive</strong><small>Search the recorded results database · up to 50 races per page</small></div><button class="quiet-button" data-action="export-races">EXPORT CURRENT PAGE ↓</button></div><div class="panel-body"><form id="raceFilterForm"><div class="filter-grid"><div class="filter-field"><label for="raceRoom">ROOM ID</label><input class="filter-control" id="raceRoom" name="roomId" placeholder="e.g. YRAVOQ" value="' + esc(f.roomId || "") + '"></div><div class="filter-field"><label for="raceFc">PLAYER FRIEND CODE</label><input class="filter-control" id="raceFc" name="friendCode" placeholder="0000-0000-0000" value="' + esc(f.friendCode || "") + '"></div><div class="filter-field"><label for="raceTrack">TRACK</label><select class="filter-control" id="raceTrack" name="courseId"><option value="">All tracks</option>' + trackOptions + '</select></div><div class="filter-field"><label for="raceCc">ENGINE CLASS</label><select class="filter-control" id="raceCc" name="engineClassId"><option value="">All classes</option><option value="50"' + (String(f.engineClassId || "") === "50" ? " selected" : "") + '>50cc</option><option value="100"' + (String(f.engineClassId || "") === "100" ? " selected" : "") + '>100cc</option><option value="150"' + (String(f.engineClassId || "") === "150" ? " selected" : "") + '>150cc</option><option value="200"' + (String(f.engineClassId || "") === "200" ? " selected" : "") + '>200cc</option></select></div><div class="filter-field"><label for="raceFrom">FROM DATE</label><input class="filter-control" type="date" id="raceFrom" name="from" value="' + esc(f.from || "") + '"></div><div class="filter-field"><label for="raceTo">TO DATE</label><input class="filter-control" type="date" id="raceTo" name="to" value="' + esc(f.to || "") + '"></div><div class="filter-actions"><button class="secondary-button" type="reset">CLEAR</button><button class="primary-button" type="submit">SEARCH RACES ↗</button></div></div></form></div><div id="raceResults">' + raceTable(state.races, "LOADING RACE RESULTS") + '</div><div class="table-actions"><span class="subnote">' + fmt(state.raceTotal) + ' matching race records</span><div class="pagination"><button data-action="race-page" data-page="' + Math.max(1, state.racePage - 1) + '"' + (state.racePage <= 1 ? " disabled" : "") + '>‹</button><span>PAGE ' + state.racePage + ' / ' + Math.max(1, state.racePages) + '</span><button data-action="race-page" data-page="' + Math.min(state.racePages, state.racePage + 1) + '"' + (state.racePage >= state.racePages ? " disabled" : "") + '>›</button></div></div></section>';
 }
 function renderPlayers() {
@@ -202,15 +250,15 @@ function metaList(items, mode) {
   const list = safeList(items);
   if (!list.length) return '<div class="empty-state">NO DATA</div>';
   const max = Math.max(1, ...list.map(item => Number(item.raceCount) || 0));
-  return list.slice(0, 12).map((item, i) => '<div class="meta-item"><div class="meta-item-head"><b><span class="muted mono">' + String(i + 1).padStart(2, "0") + '</span> &nbsp;' + esc(item.name || item.trackName) + '</b><span>' + fmt(item.raceCount) + (mode === "track" ? " races" : "") + '</span></div><div class="bar-meter"><i style="width:' + Math.max(1, (Number(item.raceCount) || 0) / max * 100) + '%"></i></div></div>').join("");
+  return analyticsItems(list, 12).map((item, i) => '<div class="meta-item"><div class="meta-item-head"><b><span class="muted mono">' + String(i + 1).padStart(2, "0") + '</span> &nbsp;' + esc(item.name || item.trackName) + '</b><span>' + fmt(item.raceCount) + (mode === "track" ? " races" : "") + '</span></div><div class="bar-meter"><i style="width:' + Math.max(1, (Number(item.raceCount) || 0) / max * 100) + '%"></i></div></div>').join("");
 }
 function renderMeta() {
   const g = state.globalStats || {};
-  return '<div class="meta-grid"><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Character usage</strong><small>Most selected racers</small></div><span class="panel-kicker">PICK RATE</span></div><div class="panel-body">' + metaList(g.topCharacters) + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Vehicle usage</strong><small>Karts and bikes by exact vehicle</small></div><span class="panel-kicker">PICK RATE</span></div><div class="panel-body">' + metaList(g.topVehicles) + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Character + vehicle meta</strong><small>Exact combo frequency</small></div><span class="panel-kicker">COMBOS</span></div><div class="panel-body">' + metaList(g.topCombos) + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Most played tracks</strong><small>All tracks with recorded race results</small></div><span class="panel-kicker">TRACKS</span></div><div class="panel-body">' + metaList(safeList(g.allPlayedTracks).map(t => ({ name: t.trackName, raceCount: t.raceCount })), "track") + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Combo win rates</strong><small>Successful setups by wins per race</small></div><span class="panel-kicker">WIN RATE</span></div><div class="panel-body">' + rateList(g.topCombosByWinRate) + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Player activity</strong><small>Most active racers in the archive</small></div><span class="panel-kicker">RACE COUNT</span></div><div class="panel-body">' + rankList(g.mostActivePlayers, "name", "raceCount", " RACES") + '</div></section></div><div class="section-spacer"></div><section class="panel"><div class="panel-head"><div class="panel-title"><strong>When the grid gets busy</strong><small>Recorded race results by time of day</small></div><span class="panel-kicker">HOURLY ACTIVITY · UTC</span></div><div class="panel-body">' + barChart(safeList(g.racesByHour).map(item => ({ hour: String(item.hour).padStart(2, "0") + ":00", count: item.raceCount })), "hour", "count") + '</div></section>';
+  return '<div class="meta-grid"><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Character usage</strong><small>Most selected racers</small></div><span class="panel-kicker">PICK RATE</span></div><div class="panel-body">' + metaList(g.topCharacters) + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Vehicle usage</strong><small>Karts and bikes by exact vehicle</small></div><span class="panel-kicker">PICK RATE</span></div><div class="panel-body">' + metaList(g.topVehicles) + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Character + vehicle meta</strong><small>Exact combo frequency</small></div><span class="panel-kicker">COMBOS</span></div><div class="panel-body">' + metaList(g.topCombos) + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Most played tracks</strong><small>All tracks with recorded race results</small></div><span class="panel-kicker">TRACKS</span></div><div class="panel-body">' + metaList(safeList(g.allPlayedTracks).map(t => ({ name: courseDisplayName(t.trackName, t.courseId), raceCount: t.raceCount })), "track") + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Combo win rates</strong><small>Successful setups by wins per race</small></div><span class="panel-kicker">WIN RATE</span></div><div class="panel-body">' + rateList(g.topCombosByWinRate) + '</div></section><section class="panel"><div class="panel-head"><div class="panel-title"><strong>Player activity</strong><small>Most active racers in the archive</small></div><span class="panel-kicker">RACE COUNT</span></div><div class="panel-body">' + rankList(g.mostActivePlayers, "name", "raceCount", " RACES") + '</div></section></div><div class="section-spacer"></div><section class="panel"><div class="panel-head"><div class="panel-title"><strong>When the grid gets busy</strong><small>Recorded race results by time of day</small></div><span class="panel-kicker">HOURLY ACTIVITY · UTC</span></div><div class="panel-body">' + barChart(safeList(g.racesByHour).map(item => ({ hour: String(item.hour).padStart(2, "0") + ":00", count: item.raceCount })), "hour", "count") + '</div></section>';
 }
 function rateList(items) {
   if (!safeList(items).length) return '<div class="empty-state">NO WIN-RATE DATA</div>';
-  return '<div class="rank-list">' + items.slice(0, 8).map((item, index) => '<div class="rank-row"><span class="rank-number">' + String(index + 1).padStart(2, "0") + '</span><span class="rank-name">' + esc(item.name) + '<div class="subnote">' + fmt(item.winCount) + ' wins / ' + fmt(item.raceCount) + ' races</div></span><span class="rank-value">' + (Number(item.winRate) || 0).toFixed(1) + '%</span></div>').join("") + '</div>';
+  return '<div class="rank-list">' + analyticsItems(items, 8).map((item, index) => '<div class="rank-row"><span class="rank-number">' + String(index + 1).padStart(2, "0") + '</span><span class="rank-name">' + esc(item.name) + '<div class="subnote">' + fmt(item.winCount) + ' wins / ' + fmt(item.raceCount) + ' races</div></span><span class="rank-value">' + (Number(item.winRate) || 0).toFixed(1) + '%</span></div>').join("") + '</div>';
 }
 function setView(view) {
   state.view = view;
@@ -386,13 +434,13 @@ function historyArray(data) {
 function playerDetail(player, stats, analytics, history, results) {
   const p = player || {};
   const changes = p.vrStats || {};
-  const rows = safeList(stats && stats.recentRaces).slice(0, 12);
+  const rows = analyticsItems(stats && stats.recentRaces, 12);
   const h = historyArray(history);
   const vals = h.map(item => Number(item.vr != null ? item.vr : item.value != null ? item.value : item.rating)).filter(Number.isFinite);
   const max = Math.max(1, ...vals);
   const min = Math.min(0, ...vals);
   const chart = vals.length ? '<div class="history-chart">' + vals.map(value => '<i title="' + fmt(value) + ' VR" style="height:' + Math.max(3, (value - min) / Math.max(1, max - min) * 100) + '%"></i>').join("") + '</div>' : '<div class="empty-state">NO VR HISTORY RETURNED FOR THIS PLAYER</div>';
-  const raceRows = rows.map((race, index) => '<tr><td>' + dateTime(race.timestamp) + '</td><td>' + esc(race.trackName || "—") + '</td><td>' + esc(race.characterName || "—") + ' / ' + esc(race.vehicleName || "—") + '</td><td class="mono">' + (race.finishPos == null ? "—" : "#" + fmt(race.finishPos)) + '</td></tr>').join("");
+  const raceRows = rows.map((race, index) => '<tr><td>' + dateTime(race.timestamp) + '</td><td>' + esc(courseDisplayName(race.trackName, race.courseId)) + '</td><td>' + esc(race.characterName || "—") + ' / ' + esc(race.vehicleName || "—") + '</td><td class="mono">' + (race.finishPos == null ? "—" : "#" + fmt(race.finishPos)) + '</td></tr>').join("");
   return '<div class="detail-head"><div class="detail-kicker">PLAYER DOSSIER // ' + esc(p.friendCode || "") + '</div><div class="detail-name" id="detailTitle">' + esc(p.name || "Unknown player") + '</div><div class="detail-sub">PID ' + esc(p.pid || "—") + ' · LAST SEEN ' + esc(ago(p.lastSeen)) + '</div></div>' +
     '<div class="stat-pills"><div class="stat-pill"><b>' + fmt(p.vr) + '</b><span>CURRENT VR</span></div><div class="stat-pill"><b>' + (p.rank ? "#" + fmt(p.rank) : "—") + '</b><span>RANK</span></div><div class="stat-pill"><b class="' + (Number(changes.last24Hours) >= 0 ? "positive" : "negative") + '">' + signed(changes.last24Hours) + '</b><span>24H VR</span></div><div class="stat-pill"><b>' + fmt(stats && stats.totalRaces) + '</b><span>TRACKED RACES</span></div></div>' +
     '<section class="detail-section"><h3>VR history // 30 days</h3>' + chart + '<div class="subnote">History points returned by the official RWFC player endpoint.</div></section>' +
@@ -410,7 +458,7 @@ function openRace(index) {
   document.body.style.overflow = "hidden";
   const participants = safeList(race.participants).slice().sort((a, b) => Number(a.finishPos) - Number(b.finishPos));
   const rows = participants.map(player => '<tr><td class="mono lime">#' + fmt(player.finishPos) + '</td><td>' + esc(player.name || player.friendCode || "Unknown player") + '</td><td class="mono">' + esc(player.friendCode || "—") + '</td><td>' + esc(player.characterName || "—") + '</td><td>' + esc(player.vehicleName || "—") + '</td><td class="mono">' + esc(player.finishTimeDisplay || "—") + '</td><td class="mono">' + fmt(player.framesIn1st) + '</td></tr>').join("");
-  $("#detailContent").innerHTML = '<div class="detail-head"><div class="detail-kicker">RACE RECORD // ' + esc(race.roomId || "") + '</div><div class="detail-name" id="detailTitle">' + esc(race.trackName || "Recorded race") + '</div><div class="detail-sub">' + dateTime(race.timestamp) + ' · ROOM ' + esc(race.roomId || "—") + ' · RACE #' + fmt(race.raceNumber) + '</div></div><div class="stat-pills"><div class="stat-pill"><b>' + participants.length + '</b><span>PARTICIPANTS</span></div><div class="stat-pill"><b>' + fmt(race.engineClassId) + '</b><span>ENGINE CLASS</span></div><div class="stat-pill"><b>' + fmt(race.courseId) + '</b><span>COURSE ID</span></div><div class="stat-pill"><b>' + esc(race.gameMode || "—") + '</b><span>MODE</span></div></div><section class="detail-section"><h3>Finishing order + character combos</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>PLACE</th><th>PLAYER</th><th>FRIEND CODE</th><th>CHARACTER</th><th>VEHICLE</th><th>TIME</th><th>FRAMES IN 1ST</th></tr></thead><tbody>' + (rows || '<tr><td colspan="7">No participant detail returned.</td></tr>') + '</tbody></table></div></section><section class="detail-section"><h3>Race metadata</h3><div class="subnote">Public room: ' + (race.isPublic == null ? "not reported" : race.isPublic ? "yes" : "no") + ' · Exact finish positions and setup names are provided by the RWFC race-result archive.</div></section>';
+  $("#detailContent").innerHTML = '<div class="detail-head"><div class="detail-kicker">RACE RECORD // ' + esc(race.roomId || "") + '</div><div class="detail-name" id="detailTitle">' + esc(courseDisplayName(race.trackName, race.courseId)) + '</div><div class="detail-sub">' + dateTime(race.timestamp) + ' · ROOM ' + esc(race.roomId || "—") + ' · RACE #' + fmt(race.raceNumber) + '</div></div><div class="stat-pills"><div class="stat-pill"><b>' + participants.length + '</b><span>PARTICIPANTS</span></div><div class="stat-pill"><b>' + fmt(race.engineClassId) + '</b><span>ENGINE CLASS</span></div><div class="stat-pill"><b>' + fmt(race.courseId) + '</b><span>COURSE ID</span></div><div class="stat-pill"><b>' + esc(race.gameMode || "—") + '</b><span>MODE</span></div></div><section class="detail-section"><h3>Finishing order + character combos</h3><div class="table-wrap"><table class="data-table"><thead><tr><th>PLACE</th><th>PLAYER</th><th>FRIEND CODE</th><th>CHARACTER</th><th>VEHICLE</th><th>TIME</th><th>FRAMES IN 1ST</th></tr></thead><tbody>' + (rows || '<tr><td colspan="7">No participant detail returned.</td></tr>') + '</tbody></table></div></section><section class="detail-section"><h3>Race metadata</h3><div class="subnote">Public room: ' + (race.isPublic == null ? "not reported" : race.isPublic ? "yes" : "no") + ' · Exact finish positions and setup names are provided by the RWFC race-result archive.</div></section>';
 }
 function closeOverlay() {
   $("#detailOverlay").hidden = true;
@@ -437,6 +485,13 @@ document.addEventListener("click", event => {
   const button = event.target.closest("[data-action]");
   if (!button) return;
   const action = button.dataset.action;
+  if (action === "toggle-detail") {
+    state.detailedAnalytics = !state.detailedAnalytics;
+    try { localStorage.setItem("rrstats-detailed-analytics", state.detailedAnalytics ? "true" : "false"); } catch (_) {}
+    updateAnalyticsModeButton();
+    renderView();
+    return;
+  }
   if (action === "goto") {
     setView(button.dataset.view);
     if (button.dataset.view === "players") loadLeaderboard(1);
@@ -486,6 +541,7 @@ $("#refreshButton").addEventListener("click", () => initialLoad());
 $("#detailOverlay").addEventListener("keydown", event => { if (event.key === "Escape") closeOverlay(); });
 document.addEventListener("keydown", event => { if (event.key === "Escape") closeOverlay(); });
 
+updateAnalyticsModeButton();
 initialLoad();
 setInterval(refreshLive, 20000);
 setInterval(refreshSlow, 60000);
