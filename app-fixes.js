@@ -8,7 +8,7 @@
 
     // Never use /roomstatus/pcount for the live MKWii room total: that upstream
     // counter is not the same thing as the current room snapshot / peak metric.
-    const snapshotCount = Number.isFinite(Number(state.roomStatus && state.roomStatus.totalPlayers))
+    const snapshotCount = state.roomStatus && Number.isFinite(Number(state.roomStatus.totalPlayers))
       ? Number(state.roomStatus.totalPlayers)
       : state.rooms.reduce((sum, room) => sum + roomPlayers(room).length, 0);
     const peak = state.roomStats && state.roomStats.peakPlayersAllTime;
