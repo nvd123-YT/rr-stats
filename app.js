@@ -83,8 +83,8 @@ function updateAnalyticsModeButton() {
   button.setAttribute("aria-pressed", enabled ? "true" : "false");
   button.classList.toggle("enabled", enabled);
   button.title = enabled
-    ? "Showing all analytics records returned by each source. Click to return to compact rankings."
-    : "Showing compact rankings. Click to show every analytics record returned by each source.";
+    ? "Showing every currently loaded record across stats, rankings, rooms and charts. Source pagination still applies."
+    : "Showing compact top rankings and summary samples. Click to expand every currently available list.";
 }
 
 const getItems = value => Array.isArray(value) ? value : safeList(value && value.items);
@@ -249,7 +249,7 @@ function renderRooms() {
 function renderRaces() {
   const f = state.raceFilters;
   const trackOptions = analyticsItems(state.globalStats && state.globalStats.allPlayedTracks, 100).map(track => '<option value="' + esc(track.courseId) + '"' + (String(f.courseId || "") === String(track.courseId) ? " selected" : "") + '>' + esc(courseDisplayName(track.name || track.trackName, track.courseId)) + '</option>').join("");
-  return '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Race archive</strong><small>Search the recorded results database · up to 50 races per page</small></div><button class="quiet-button" data-action="export-races">EXPORT CURRENT PAGE ↓</button></div><div class="panel-body"><form id="raceFilterForm"><div class="filter-grid"><div class="filter-field"><label for="raceRoom">ROOM ID</label><input class="filter-control" id="raceRoom" name="roomId" placeholder="e.g. YRAVOQ" value="' + esc(f.roomId || "") + '"></div><div class="filter-field"><label for="raceFc">PLAYER FRIEND CODE</label><input class="filter-control" id="raceFc" name="friendCode" placeholder="0000-0000-0000" value="' + esc(f.friendCode || "") + '"></div><div class="filter-field"><label for="raceTrack">TRACK</label><select class="filter-control" id="raceTrack" name="courseId"><option value="">All tracks</option>' + trackOptions + '</select></div><div class="filter-field"><label for="raceCc">ENGINE CLASS</label><select class="filter-control" id="raceCc" name="engineClassId"><option value="">All classes</option><option value="50"' + (String(f.engineClassId || "") === "50" ? " selected" : "") + '>50cc</option><option value="100"' + (String(f.engineClassId || "") === "100" ? " selected" : "") + '>100cc</option><option value="150"' + (String(f.engineClassId || "") === "150" ? " selected" : "") + '>150cc</option><option value="200"' + (String(f.engineClassId || "") === "200" ? " selected" : "") + '>200cc</option></select></div><div class="filter-field"><label for="raceFrom">FROM DATE</label><input class="filter-control" type="date" id="raceFrom" name="from" value="' + esc(f.from || "") + '"></div><div class="filter-field"><label for="raceTo">TO DATE</label><input class="filter-control" type="date" id="raceTo" name="to" value="' + esc(f.to || "") + '"></div><div class="filter-actions"><button class="secondary-button" type="reset">CLEAR</button><button class="primary-button" type="submit">SEARCH RACES ↗</button></div></div></form></div><div id="raceResults">' + raceTable(state.races, "LOADING RACE RESULTS") + '</div><div class="table-actions"><span class="subnote">' + fmt(state.raceTotal) + ' matching race records</span><div class="pagination"><button data-action="race-page" data-page="' + Math.max(1, state.racePage - 1) + '"' + (state.racePage <= 1 ? " disabled" : "") + '>‹</button><span>PAGE ' + state.racePage + ' / ' + Math.max(1, state.racePages) + '</span><button data-action="race-page" data-page="' + Math.min(state.racePages, state.racePage + 1) + '"' + (state.racePage >= state.racePages ? " disabled" : "") + '>›</button></div></div></section>';
+  return '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>Race archive</strong><small>Search the recorded results database · ${state.detailedAnalytics ? "50" : "25"} races per page</small></div><button class="quiet-button" data-action="export-races">EXPORT CURRENT PAGE ↓</button></div><div class="panel-body"><form id="raceFilterForm"><div class="filter-grid"><div class="filter-field"><label for="raceRoom">ROOM ID</label><input class="filter-control" id="raceRoom" name="roomId" placeholder="e.g. YRAVOQ" value="' + esc(f.roomId || "") + '"></div><div class="filter-field"><label for="raceFc">PLAYER FRIEND CODE</label><input class="filter-control" id="raceFc" name="friendCode" placeholder="0000-0000-0000" value="' + esc(f.friendCode || "") + '"></div><div class="filter-field"><label for="raceTrack">TRACK</label><select class="filter-control" id="raceTrack" name="courseId"><option value="">All tracks</option>' + trackOptions + '</select></div><div class="filter-field"><label for="raceCc">ENGINE CLASS</label><select class="filter-control" id="raceCc" name="engineClassId"><option value="">All classes</option><option value="50"' + (String(f.engineClassId || "") === "50" ? " selected" : "") + '>50cc</option><option value="100"' + (String(f.engineClassId || "") === "100" ? " selected" : "") + '>100cc</option><option value="150"' + (String(f.engineClassId || "") === "150" ? " selected" : "") + '>150cc</option><option value="200"' + (String(f.engineClassId || "") === "200" ? " selected" : "") + '>200cc</option></select></div><div class="filter-field"><label for="raceFrom">FROM DATE</label><input class="filter-control" type="date" id="raceFrom" name="from" value="' + esc(f.from || "") + '"></div><div class="filter-field"><label for="raceTo">TO DATE</label><input class="filter-control" type="date" id="raceTo" name="to" value="' + esc(f.to || "") + '"></div><div class="filter-actions"><button class="secondary-button" type="reset">CLEAR</button><button class="primary-button" type="submit">SEARCH RACES ↗</button></div></div></form></div><div id="raceResults">' + raceTable(state.races, "LOADING RACE RESULTS") + '</div><div class="table-actions"><span class="subnote">' + fmt(state.raceTotal) + ' matching race records</span><div class="pagination"><button data-action="race-page" data-page="' + Math.max(1, state.racePage - 1) + '"' + (state.racePage <= 1 ? " disabled" : "") + '>‹</button><span>PAGE ' + state.racePage + ' / ' + Math.max(1, state.racePages) + '</span><button data-action="race-page" data-page="' + Math.min(state.racePages, state.racePage + 1) + '"' + (state.racePage >= state.racePages ? " disabled" : "") + '>›</button></div></div></section>';
 }
 function renderPlayers() {
   const f = state.leaderboardFilters;
@@ -399,7 +399,7 @@ async function loadRaces(page) {
   state.racePage = page || 1;
   const query = new URLSearchParams(state.raceFilters);
   query.set("page", String(state.racePage));
-  query.set("pageSize", "50");
+  query.set("pageSize", state.detailedAnalytics ? "50" : "25");
   $("#raceResults").innerHTML = '<div class="loading-state"><span class="loader"></span> Querying race records…</div>';
   try {
     const payload = await api("/racestats/races?" + query.toString());
@@ -418,7 +418,7 @@ async function loadLeaderboard(page) {
   const f = state.leaderboardFilters;
   const query = new URLSearchParams({
     page: String(state.leaderboardPage),
-    pageSize: "50",
+    pageSize: state.detailedAnalytics ? "50" : "10",
     sortBy: f.sortBy || "vr",
     ascending: String(!!f.ascending)
   });
@@ -523,6 +523,8 @@ document.addEventListener("click", event => {
     if (typeof window.renderView === "function") window.renderView();
     else renderView();
     if (state.detailedAnalytics) refreshOverviewCollections();
+    if (state.view === "players") loadLeaderboard(1);
+    if (state.view === "races") loadRaces(1);
     if (state.view === "time-trials" && typeof window.refreshTimeTrialDetailMode === "function") window.refreshTimeTrialDetailMode();
     return;
   }
