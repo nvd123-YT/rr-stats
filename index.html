@@ -4,17 +4,18 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#090d12">
-  <meta name="description" content="Live Retro Rewind Mario Kart Wii rooms, races, VR leaderboard, player profiles and combo analytics.">
-  <title>Retro Rewind Stats</title>
+  <meta name="description" content="Live Mario Kart Wii populations, rooms, race archives and VR analytics across Retro WFC, Wiimmfi and WiiLink WFC.">
+  <title>MKWii Network Stats</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="networks.css">
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
   <header class="topbar">
     <a class="brand" href="#" aria-label="Retro Rewind Stats home" data-view="overview">
       <span class="brand-mark">RR</span>
-      <span class="brand-copy"><strong>RETRO REWIND</strong><small>STATS / TELEMETRY</small></span>
+      <span class="brand-copy"><strong>MKWII NETWORKS</strong><small>GLOBAL STATS / TELEMETRY</small></span>
     </a>
     <div class="topbar-right">
       <a class="source-link" href="https://rwfc.net" target="_blank" rel="noreferrer">RWFC.NET <span>↗</span></a>
@@ -31,6 +32,7 @@
       <button class="nav-tab" data-view="players" type="button"><span>04</span> VR PLAYERS</button>
       <button class="nav-tab" data-view="meta" type="button"><span>05</span> META / ANALYTICS</button>
       <button class="nav-tab" data-view="time-trials" type="button"><span>06</span> TIME TRIALS</button>
+      <button class="nav-tab" data-view="networks" type="button"><span>07</span> NETWORKS</button>
     </div>
     <div class="nav-live"><b class="pulse"></b> LIVE DATA <span id="lastUpdated">—</span></div>
   </nav>
@@ -38,11 +40,11 @@
   <main class="shell">
     <section class="page-heading">
       <div>
-        <p class="eyebrow" id="viewEyebrow">RETRO REWIND // NETWORK INTELLIGENCE</p>
+        <p class="eyebrow" id="viewEyebrow">MARIO KART WII // NETWORK INTELLIGENCE</p>
         <h1 id="viewTitle">The grid, <em>right now.</em></h1>
-        <p id="viewSubtitle" class="subheading">Every room. Every racer. Every result RWFC makes available.</p>
+        <p id="viewSubtitle" class="subheading">Live populations across every supported server, with deep race and player analytics wherever published.</p>
       </div>
-      <div class="heading-aside"><span class="season-label">MARIO KART WII</span><span class="heading-dot"></span><span>RETRO REWIND</span></div>
+      <div class="heading-aside"><span class="season-label">MARIO KART WII</span><span class="heading-dot"></span><span>WFC NETWORKS</span></div>
     </section>
 
     <div id="notice" class="notice" hidden></div>
@@ -58,8 +60,8 @@
     </section>
 
     <footer class="footer">
-      <div class="footer-brand"><span class="brand-mark mini">RR</span><span>RETRO REWIND STATS</span></div>
-      <p>Independent community stats viewer. Data supplied by <a href="https://rwfc.net" target="_blank" rel="noreferrer">Retro WFC</a>; not affiliated with Nintendo or the Retro Rewind team.</p>
+      <div class="footer-brand"><span class="brand-mark mini">RR</span><span>MKWII NETWORK STATS</span></div>
+      <p>Independent community stats viewer. Data comes from each network’s public feeds; not affiliated with Nintendo, Wiimmfi, WiiLink or Retro Rewind.</p>
       <p class="footer-right">Updates automatically · <a href="https://github.com/nvd123-YT/rr-stats" target="_blank" rel="noreferrer">SOURCE CODE ↗</a></p>
     </footer>
   </main>
@@ -74,5 +76,6 @@
 
   <script src="app.js" defer></script>
   <script src="app-fixes.js" defer></script>
+  <script src="networks.js" defer></script>
 </body>
 </html>
