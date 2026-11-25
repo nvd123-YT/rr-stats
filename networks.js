@@ -59,7 +59,7 @@
     for (const block of blocks) {
       const fields = {};
       for (const line of block.split(/\r?\n/)) {
-        const match = line.match(/^\s*([a-z_]+)\s*=\s*(.*?)\s*$/i);
+        const match = line.match(/^\s*([a-z0-9_]+)\s*=\s*(.*?)\s*$/i);
         if (match) fields[match[1].toLowerCase()] = match[2].trim();
       }
       const pid = fields.pid || "unknown-" + playersByPid.size;
