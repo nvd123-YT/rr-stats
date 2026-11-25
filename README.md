@@ -27,9 +27,7 @@ The official RWFC backend enables cross-origin read access for its production fr
 
 ## Publish with GitHub Pages
 
-1. Open **Settings → Pages** for this repository.
-2. Under **Build and deployment**, set **Source** to **GitHub Actions**.
-3. The included workflow deploys the site on every push to `main`. You can also run it manually from **Actions → Deploy GitHub Pages**.
+GitHub Pages is configured to publish the repository root from `main`. GitHub's Pages build-and-deployment workflow runs automatically when new commits are pushed to that branch. Keep **Settings → Pages → Build and deployment** set to **Deploy from a branch**, branch `main`, folder `/(root)`.
 
 Expected URL: [https://nvd123-YT.github.io/rr-stats/](https://nvd123-YT.github.io/rr-stats/).
 
