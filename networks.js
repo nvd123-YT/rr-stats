@@ -15,6 +15,10 @@
   };
 
   const appState = () => typeof state !== "undefined" ? state : {};
+  const visibleRecords = (items, compactLimit) => {
+    const list = Array.isArray(items) ? items : [];
+    return appState().detailedAnalytics ? list : list.slice(0, compactLimit);
+  };
   const finite = value => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
   const number = value => finite(value) ? Number(value) : null;
   const fmt = value => finite(value) ? Number(value).toLocaleString() : "—";
@@ -518,10 +522,10 @@
   function renderNetworkActivity() {
     const wiimmfi = networkState.wiimmfi;
     const wiilink = networkState.wiilink;
-    const wiimmfiRegions = (wiimmfi.regions || []).slice(0, appState().detailedAnalytics ? (wiimmfi.regions || []).length : 30).map(region =>
+    const wiimmfiRegions = visibleRecords(wiimmfi.regions, 30).map(region =>
       '<tr><td class="mono">' + esc(region.id) + '</td><td class="mono lime">' + fmt(region.players) + '</td></tr>'
     ).join("");
-    const wiimmfiRooms = (wiimmfi.roomGroups || []).slice(0, 60).map(room => {
+    const wiimmfiRooms = visibleRecords(wiimmfi.roomGroups, 60).map(room => {
       const count = number(room.playerCount) !== null ? room.playerCount
         : Array.isArray(room.roster) ? room.roster.length
         : number(room.players);
@@ -529,7 +533,7 @@
         esc(room.privateRoom == null ? "—" : room.privateRoom ? "Private" : "Public") + '</td><td>' +
         esc(room.onlineScope || room.mode || "—") + '</td><td>' + fmt(count) + '</td></tr>';
     }).join("");
-    const wiimmfiPlayers = (wiimmfi.players || []).slice(0, 100).map(player =>
+    const wiimmfiPlayers = visibleRecords(wiimmfi.players, 100).map(player =>
       '<tr><td><b>' + esc(player.name) + '</b></td><td>' + esc(player.mode) + '</td><td>' +
       esc(player.role || "—") + '</td><td class="mono">' + esc(player.room || "—") + '</td><td class="mono">' +
       esc(player.region || "—") + '</td><td>' + esc(player.privateRoom ? "Private" : "Public") + ' · ' +
@@ -556,7 +560,7 @@
         '</tbody></table></div></section>'
       : '<section><div class="panel-title"><strong>Wiimmfi</strong><small>Live activity detail</small></div><div class="empty-state">Room and player details unavailable from the current Wiimmfi feeds.</div></section>';
 
-    const wiilinkRooms = (wiilink.roomGroups || []).slice(0, 60).map(room => {
+    const wiilinkRooms = visibleRecords(wiilink.roomGroups, 60).map(room => {
       const race = room.race || {};
       const course = race.course == null ? "—" : courseDisplayName(race.trackName || race.courseName, race.course);
       const players = room.players.map(player =>
@@ -826,8 +830,8 @@
   function renderWiiLinkMetaPage() {
     const w = networkState.wiilink;
     const players = allWiiLinkPlayers();
-    const byVs = players.filter(p => number(p.versusElo) !== null).slice().sort((a, b) => b.versusElo - a.versusElo).slice(0, appState().detailedAnalytics ? players.length : 8);
-    const byBattle = players.filter(p => number(p.battleElo) !== null).slice().sort((a, b) => b.battleElo - a.battleElo).slice(0, appState().detailedAnalytics ? players.length : 8);
+    const byVs = visibleRecords(players.filter(p => number(p.versusElo) !== null).slice().sort((a, b) => b.versusElo - a.versusElo), 8);
+    const byBattle = visibleRecords(players.filter(p => number(p.battleElo) !== null).slice().sort((a, b) => b.battleElo - a.battleElo), 8);
     const failures = players.reduce((sum, p) => sum + (number(p.connectionFailures) || 0), 0);
     const slots = players.reduce((sum, p) => sum + (number(p.consolePlayers) || 0), 0);
     const rankRows = items => '<div class="rank-list">' + (items.length ? items.map((p, i) =>
