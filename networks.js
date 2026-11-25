@@ -1,8 +1,9 @@
 "use strict";
 
 (() => {
+  const WIIMMFI_JSON_URL = "https://wiimmfi.de/stats/mkwx?m=json";
   const WIIMMFI_URL = "https://wiimmfi.de/stats/game/mariokartwii/text";
-  const WIIMMFI_PAGE = "https://wiimmfi.de/stats/game/mariokartwii";
+  const WIIMMFI_PAGE = "https://wiimmfi.de/stats/mkw";
   const WIILINK_URL = "https://wfc.wiilink.ca/online";
   const REFRESH_MS = 45000;
   const networkState = {
@@ -104,29 +105,97 @@
     };
   }
 
+  function parseWiimmfiJson(payload) {
+    if (!Array.isArray(payload)) return null;
+    const rooms = payload.filter(record => record && String(record.type).toLowerCase() === "room");
+    if (!rooms.length && payload.length) return null;
+
+    const byRegion = new Map();
+    const roomRows = rooms.map((record, index) => {
+      const players = number(record.n_players);
+      const region = record.region == null ? "Unknown" : String(record.region);
+      const roomId = record.room_id != null ? record.room_id
+        : record.room != null ? record.room
+        : record.id != null ? record.id : "Room " + (index + 1);
+      if (players !== null) byRegion.set(region, (byRegion.get(region) || 0) + players);
+      return { id: String(roomId), region, players: players === null ? 0 : players };
+    });
+
+    const totalPlayers = roomRows.reduce((sum, room) => sum + room.players, 0);
+    const regions = Array.from(byRegion.entries())
+      .map(([id, players]) => ({ id, players }))
+      .sort((a, b) => b.players - a.players);
+
+    return {
+      onlinePlayers: totalPlayers,
+      rooms: roomRows.length,
+      players: [],
+      roomGroups: roomRows,
+      regions,
+      method: "Wiimmfi legacy mkwx JSON room records",
+      source: "legacy-json"
+    };
+  }
+
   async function refreshWiimmfi() {
+    let jsonError = null;
+    try {
+      const raw = await fetchText(WIIMMFI_JSON_URL, 12000);
+      const parsed = parseWiimmfiJson(JSON.parse(raw));
+      if (parsed) {
+        networkState.wiimmfi = {
+          name: "Wiimmfi",
+          onlinePlayers: parsed.onlinePlayers,
+          rooms: parsed.rooms,
+          players: parsed.players,
+          roomGroups: parsed.roomGroups,
+          regions: parsed.regions,
+          status: "live",
+          detail: "Live Mario Kart Wii room totals from Wiimmfi's legacy JSON feed (may be deprecated)",
+          source: parsed.source,
+          updatedAt: new Date().toISOString()
+        };
+        return;
+      }
+      jsonError = "The JSON endpoint returned an unrecognized structure";
+    } catch (error) {
+      jsonError = String(error && error.message || error);
+    }
+
+    // Fallback: newer text statistics endpoint. Some automated/browser clients receive
+    // Cloudflare protection here, so failure must stay visible rather than becoming zero.
     try {
       const text = await fetchText(WIIMMFI_URL, 12000);
       const parsed = parseWiimmfiText(text);
+      if (parsed.onlinePlayers !== null) {
+        networkState.wiimmfi = {
+          name: "Wiimmfi",
+          onlinePlayers: parsed.onlinePlayers,
+          rooms: parsed.rooms,
+          players: parsed.players,
+          roomGroups: parsed.roomGroups,
+          regions: [],
+          status: "live",
+          detail: "Live count decoded from the Wiimmfi Mario Kart Wii status text feed",
+          source: "status-text",
+          updatedAt: new Date().toISOString()
+        };
+        return;
+      }
       networkState.wiimmfi = {
-        name: "Wiimmfi",
-        onlinePlayers: parsed.onlinePlayers,
-        rooms: parsed.rooms,
-        players: parsed.players,
-        roomGroups: parsed.roomGroups,
-        status: parsed.onlinePlayers === null ? "partial" : "live",
-        detail: parsed.onlinePlayers === null
-          ? "Feed was reachable, but no current Mario Kart Wii status records could be parsed"
-          : "Live count decoded from Wiimmfi Mario Kart Wii status records",
+        name: "Wiimmfi", onlinePlayers: null, rooms: null, players: [], roomGroups: [], regions: [],
+        status: "partial",
+        detail: "JSON and text feeds responded but neither exposed a verifiable MKWii count",
+        error: jsonError,
         updatedAt: new Date().toISOString()
       };
     } catch (error) {
       networkState.wiimmfi = {
-        name: "Wiimmfi", onlinePlayers: null, rooms: null, players: [], roomGroups: [],
+        name: "Wiimmfi", onlinePlayers: null, rooms: null, players: [], roomGroups: [], regions: [],
         status: "unavailable",
-        detail: "Browser could not read the public feed (CORS, anti-bot protection, or network restriction)",
-        updatedAt: new Date().toISOString(),
-        error: String(error && error.message || error)
+        detail: "Browser could not read Wiimmfi feeds (CORS, Cloudflare, network restriction, or retired legacy endpoint)",
+        error: String(error && error.message || error) + " · JSON: " + jsonError,
+        updatedAt: new Date().toISOString()
       };
     }
   }
@@ -246,8 +315,8 @@
     } else if (provider.key === "wiimmfi") {
       features = capability("Live MKWii status", provider.onlinePlayers === null ? "not readable" : "yes", provider.onlinePlayers !== null) +
         capability("Active rooms", provider.rooms === null ? "not readable" : "yes", provider.rooms !== null) +
-        capability("VR history", "not in public status feed", false) +
-        capability("Race archive", "not in public status feed", false);
+        capability("Regional counts", Array.isArray(provider.regions) && provider.regions.length ? "yes" : "not exposed", Array.isArray(provider.regions) && provider.regions.length > 0) +
+        capability("VR / race archive", "not in public status feed", false);
     } else {
       features = capability("Official game browser", "yes", true) +
         capability("MKWii-only count", provider.onlinePlayers === null ? "not exposed" : "yes", provider.onlinePlayers !== null) +
@@ -265,16 +334,19 @@
 
   function renderWiimmfiActivity() {
     const s = networkState.wiimmfi;
-    if (!s.players || !s.players.length) {
-      return '<div class="empty-state">NO WIIMMFI PLAYER DETAILS AVAILABLE FROM THE CURRENT FEED</div>';
+    if ((!s.roomGroups || !s.roomGroups.length) && (!s.regions || !s.regions.length)) {
+      return '<div class="empty-state">NO WIIMMFI ROOM DETAILS AVAILABLE FROM THE CURRENT FEED</div>';
     }
-    const rows = s.players.slice(0, 80).map(player =>
-      '<tr><td>' + esc(player.name) + '</td><td class="mono">' + esc(player.room || "—") + '</td><td>' + esc(player.mode) + '</td><td class="mono">' + esc(player.region || "—") + '</td></tr>'
+    const regions = (s.regions || []).slice(0, 30).map(region =>
+      '<tr><td class="mono">' + esc(region.id) + '</td><td class="mono lime">' + fmt(region.players) + '</td></tr>'
     ).join("");
-    const roomRows = s.roomGroups.slice(0, 30).map(room =>
-      '<tr><td class="mono">' + esc(room.id) + '</td><td>' + fmt(room.players.length) + '</td><td>' + esc(room.players.map(player => player.name).slice(0, 4).join(", ")) + (room.players.length > 4 ? " +" + (room.players.length - 4) : "") + '</td></tr>'
+    const rooms = (s.roomGroups || []).slice(0, 60).map(room =>
+      '<tr><td class="mono">' + esc(room.id) + '</td><td class="mono">' + esc(room.region) + '</td><td>' + fmt(room.players) + '</td></tr>'
     ).join("");
-    return '<div class="network-live-grid"><section><div class="panel-title"><strong>Online players</strong><small>' + fmt(s.players.length) + ' player slots from the current status feed</small></div><div class="table-wrap"><table class="data-table"><thead><tr><th>PLAYER</th><th>ROOM</th><th>STATUS</th><th>REGION</th></tr></thead><tbody>' + rows + '</tbody></table></div></section><section><div class="panel-title"><strong>Active rooms</strong><small>' + fmt(s.roomGroups.length) + ' room IDs reported</small></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>PLAYERS</th><th>PLAYERS IN ROOM</th></tr></thead><tbody>' + roomRows + '</tbody></table></div></section></div>';
+    return '<div class="network-live-grid">' +
+      '<section><div class="panel-title"><strong>Players by region</strong><small>Current room player totals grouped by region ID</small></div><div class="table-wrap"><table class="data-table"><thead><tr><th>REGION ID</th><th>PLAYERS</th></tr></thead><tbody>' + (regions || '<tr><td colspan="2">Regional breakdown not exposed</td></tr>') + '</tbody></table></div></section>' +
+      '<section><div class="panel-title"><strong>Live rooms</strong><small>Room records in the latest status response</small></div><div class="table-wrap"><table class="data-table"><thead><tr><th>ROOM</th><th>REGION</th><th>PLAYERS</th></tr></thead><tbody>' + (rooms || '<tr><td colspan="3">No room rows</td></tr>') + '</tbody></table></div></section>' +
+      '</div>';
   }
 
   function renderNetworks() {
