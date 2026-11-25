@@ -765,7 +765,7 @@
         (room.suspended ? ' · SUSPENDED' : '') + '</td><td>' + esc(room.region || "—") +
         '</td><td>' + esc(room.created ? localTime(room.created) : "—") +
         '</td><td>' + (race.num == null ? "—" : 'Race ' + fmt(race.num)) +
-        (race.course == null ? "" : ' · Course ' + fmt(race.course)) +
+        (race.course == null ? "" : ' · ' + esc(courseDisplayName(race.trackName || race.courseName, race.course))) +
         (race.cc == null ? "" : ' · ' + fmt(race.cc) + ' CC') +
         '</td><td>' + fmt(room.playerSlots) + '<div class="network-room-players">' + roster + '</div></td></tr>';
     }).join("");
