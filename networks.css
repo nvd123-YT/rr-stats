@@ -51,3 +51,25 @@
 @media(max-width:760px){.network-live-grid{grid-template-columns:1fr}}
 
 .network-checked{font:8px var(--mono);color:#718391;letter-spacing:.55px;margin:-4px 0 12px}
+
+/* Wiimmfi room-detail cards */
+.wiimmfi-room-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(235px,1fr));gap:11px}
+.wiimmfi-room-card{min-width:0;padding:14px;background:rgba(10,16,23,.9);border:1px solid rgba(130,154,171,.2);border-radius:8px}
+.wiimmfi-room-card>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:11px;margin-bottom:10px;border-bottom:1px solid rgba(130,154,171,.16)}
+.wiimmfi-room-card>header>div{display:flex;flex-direction:column;gap:4px;min-width:0}
+.wiimmfi-room-card>header small{font:8px var(--mono);letter-spacing:1px;color:#788c9a}
+.wiimmfi-room-card>header strong{font:800 21px var(--display);color:var(--cyan);overflow-wrap:anywhere}
+.wiimmfi-room-card>header>b{font:700 10px var(--mono);color:var(--lime);white-space:nowrap}
+.wiimmfi-room-facts{display:grid;grid-template-columns:1fr 1fr;gap:9px 12px}
+.wiimmfi-room-facts>div{min-width:0}
+.wiimmfi-room-facts span,.wiimmfi-room-roster>strong,.wiimmfi-room-extra>summary{display:block;font:8px var(--mono);letter-spacing:.65px;color:#7e919f;text-transform:uppercase}
+.wiimmfi-room-facts b{display:block;margin-top:4px;font:600 11px var(--mono);color:#d8e3e9;overflow-wrap:anywhere}
+.wiimmfi-room-roster{margin-top:12px;padding-top:10px;border-top:1px solid rgba(130,154,171,.14)}
+.wiimmfi-room-roster>div{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
+.wiimmfi-room-roster span{padding:5px 7px;border:1px solid #2e414e;border-radius:4px;color:#c4d3dc;font:9px var(--mono)}
+.wiimmfi-room-extra{margin-top:11px;padding-top:9px;border-top:1px solid rgba(130,154,171,.14)}
+.wiimmfi-room-extra>summary{cursor:pointer}
+.wiimmfi-room-extra>div{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid rgba(130,154,171,.09);font:9px var(--mono)}
+.wiimmfi-room-extra>div span{color:#8395a3;text-transform:capitalize}
+.wiimmfi-room-extra>div b{color:#d3dfe6;text-align:right;overflow-wrap:anywhere}
+@media(max-width:640px){.wiimmfi-room-grid{grid-template-columns:1fr}.wiimmfi-room-facts{grid-template-columns:1fr 1fr}}
