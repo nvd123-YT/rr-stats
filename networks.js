@@ -518,7 +518,7 @@
   function renderNetworkActivity() {
     const wiimmfi = networkState.wiimmfi;
     const wiilink = networkState.wiilink;
-    const wiimmfiRegions = (wiimmfi.regions || []).slice(0, 30).map(region =>
+    const wiimmfiRegions = (wiimmfi.regions || []).slice(0, appState().detailedAnalytics ? (wiimmfi.regions || []).length : 30).map(region =>
       '<tr><td class="mono">' + esc(region.id) + '</td><td class="mono lime">' + fmt(region.players) + '</td></tr>'
     ).join("");
     const wiimmfiRooms = (wiimmfi.roomGroups || []).slice(0, 60).map(room => {
@@ -826,8 +826,8 @@
   function renderWiiLinkMetaPage() {
     const w = networkState.wiilink;
     const players = allWiiLinkPlayers();
-    const byVs = players.filter(p => number(p.versusElo) !== null).slice().sort((a, b) => b.versusElo - a.versusElo).slice(0, 8);
-    const byBattle = players.filter(p => number(p.battleElo) !== null).slice().sort((a, b) => b.battleElo - a.battleElo).slice(0, 8);
+    const byVs = players.filter(p => number(p.versusElo) !== null).slice().sort((a, b) => b.versusElo - a.versusElo).slice(0, appState().detailedAnalytics ? players.length : 8);
+    const byBattle = players.filter(p => number(p.battleElo) !== null).slice().sort((a, b) => b.battleElo - a.battleElo).slice(0, appState().detailedAnalytics ? players.length : 8);
     const failures = players.reduce((sum, p) => sum + (number(p.connectionFailures) || 0), 0);
     const slots = players.reduce((sum, p) => sum + (number(p.consolePlayers) || 0), 0);
     const rankRows = items => '<div class="rank-list">' + (items.length ? items.map((p, i) =>
