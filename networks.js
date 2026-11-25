@@ -449,6 +449,8 @@
   }
 
   function setNetworkView() {
+    const s = appState();
+    if (s && typeof s === "object") s.view = "networks";
     const tabs = Array.from(document.querySelectorAll(".nav-tab"));
     tabs.forEach(tab => tab.classList.toggle("active", tab.dataset.view === "networks"));
     const eyebrow = document.querySelector("#viewEyebrow");
@@ -458,7 +460,13 @@
     if (title) title.innerHTML = "One grid, <em>every server.</em>";
     if (subtitle) subtitle.textContent = "Compare live populations across Retro WFC, Wiimmfi, WiiLink WFC and other supported networks.";
     const root = document.querySelector("#viewContent");
-    if (root) root.innerHTML = renderNetworks();
+    if (!root) return;
+    try {
+      root.innerHTML = renderNetworks();
+    } catch (error) {
+      console.error("Networks dashboard render failed:", error);
+      root.innerHTML = '<section class="panel"><div class="panel-head"><div class="panel-title"><strong>NETWORK DASHBOARD ERROR</strong><small>The Networks view failed while building its content</small></div></div><div class="panel-body"><div class="empty-state">' + esc(error && error.message ? error.message : error) + '</div></div></section>';
+    }
   }
 
   const originalUpdateMetrics = window.updateMetrics;
@@ -504,8 +512,18 @@
 
   const refreshButton = document.querySelector("#refreshButton");
   if (refreshButton) refreshButton.addEventListener("click", refreshNetworks);
-  const networkTab = document.querySelector('.nav-tab[data-view="networks"]');
-  if (networkTab) networkTab.addEventListener("click", () => setTimeout(setNetworkView, 0));
+  // Handle Networks in the capture phase so legacy page handlers cannot leave
+  // the previous view mounted or overwrite this route during the same click.
+  document.addEventListener("click", event => {
+    const target = event.target;
+    const tab = target && typeof target.closest === "function"
+      ? target.closest('.nav-tab[data-view="networks"]')
+      : null;
+    if (!tab) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    setNetworkView();
+  }, true);
 
   refreshNetworks();
   setInterval(refreshNetworks, REFRESH_MS);
